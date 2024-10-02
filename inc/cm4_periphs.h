@@ -1,8 +1,11 @@
+#pragma once
+
 #include <stdint.h>
 
 /*
     Defines the Cortex-M4 standard peripherals
 */
+
 // Going to copy ARM's way for now
 
 // "Internal" Peripherals
@@ -100,17 +103,17 @@ typedef struct {
 #define GPIOA ((GPIO_Type_t *)GPIOA_BASE)
 #define RCC ((RCC_Type_t *)RCC_BASE)
 
-// Don't use any .bss or .data values (globals) in the init func. because SRAM
-// hasn't been defined yet
-void init(void) {
-  // Assuming FPU is present, enable FPU
-  // SCB->CPACR |= ((3UL << 10*2)|(3UL << 11*2));  /* set CP10 and CP11 Full
-  // Access */
+// void init(void) {
+//   // Assuming FPU is present, enable FPU
+//   // SCB->CPACR |= ((3UL << 10*2)|(3UL << 11*2));  /* set CP10 and CP11 Full
+//   // Access */
+// 
+//   // Tell VTOR where the vector table is?
+//   // Why would we need to update this if it's already able to find the start?
+//   // SCB->VTOR = VECT_TAB_BASE_ADDRESS | VECT_TAB_OFFSET; /* Vector Table
+//   // Relocation in Internal SRAM */
+// 
+//   // Is there anything else that *needs* to be initialized now?
+// }
 
-  // Tell VTOR where the vector table is?
-  // Why would we need to update this if it's already able to find the start?
-  // SCB->VTOR = VECT_TAB_BASE_ADDRESS | VECT_TAB_OFFSET; /* Vector Table
-  // Relocation in Internal SRAM */
-
-  // Is there anything else that *needs* to be initialized now?
-}
+int sum(int a, int b);
