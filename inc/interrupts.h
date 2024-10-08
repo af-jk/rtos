@@ -2,6 +2,8 @@
 
 #include "cm4_periphs.h"
 
+#define CORE_FREQ 16000000UL
+
 #define NVIC_BASE    (SCS_BASE + 0x0100UL)
 #define SYSTICK_BASE (SCS_BASE + 0x0010UL)
 
@@ -34,5 +36,4 @@ typedef struct {
 void NVIC_EnableIRQ(uint8_t irqn);
 void NVIC_DisableIRQ(uint8_t irqn);
 void NVIC_SetPri(uint8_t irqn, uint8_t pri);
-
-void SYSTICK_Config()
+void SYSTICK_Config(void);

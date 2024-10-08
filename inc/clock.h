@@ -35,3 +35,5 @@ typedef struct {
 } RCC_t;
 
 #define RCC     ((RCC_t     *) RCC_BASE     )
+
+void RCC_EnableGPIOAClk(void);
