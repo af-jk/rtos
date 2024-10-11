@@ -17,18 +17,5 @@ void NVIC_SetPri(uint8_t irqn, uint8_t pri) {
     uint8_t idx    = irqn >> 2U; // Map 0-239 to 0-59
     uint8_t shamt  = (irqn & 3U) << 3U;
     NVIC->IPR[idx] &= ((~0xFF) & pri << shamt);  
+    NVIC->IPR[idx] = NVIC->IPR[idx] & ~(0xFFUL << )
 }
-
-/*
- if ((int32_t)(IRQn) >= 0)
-  {
-    NVIC->IP[_IP_IDX(IRQn)]  = ((uint32_t)(NVIC->IP[_IP_IDX(IRQn)]  & ~(0xFFUL << _BIT_SHIFT(IRQn))) |
-       (((priority << (8U - __NVIC_PRIO_BITS)) & (uint32_t)0xFFUL) << _BIT_SHIFT(IRQn)));
-  }
-  else
-  {
-    SCB->SHP[_SHP_IDX(IRQn)] = ((uint32_t)(SCB->SHP[_SHP_IDX(IRQn)] & ~(0xFFUL << _BIT_SHIFT(IRQn))) |
-       (((priority << (8U - __NVIC_PRIO_BITS)) & (uint32_t)0xFFUL) << _BIT_SHIFT(IRQn)));
-  }
-}
-*/
