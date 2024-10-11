@@ -2,6 +2,8 @@
 
 #include "cm4_periphs.h"
 
+#define CORE_FREQ 16000000UL
+
 #define RCC_BASE   (AHB1PERIPH_BASE + 0x3800UL)
 
 typedef struct {
@@ -35,3 +37,6 @@ typedef struct {
 } RCC_t;
 
 #define RCC     ((RCC_t     *) RCC_BASE     )
+
+void init_systick(void);
+void sys_tick_handler(void);
