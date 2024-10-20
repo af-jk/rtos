@@ -97,15 +97,15 @@ typedef enum
   I2C3_EV_IRQn                = 72,     /*!< I2C3 event interrupt                                              */
   I2C3_ER_IRQn                = 73,     /*!< I2C3 error interrupt                                              */
   FPU_IRQn                    = 81,     /*!< FPU global interrupt                                              */
-                                SPI4_IRQn                   = 84      /*!< SPI4 global Interrupt                                              */
+  SPI4_IRQn                   = 84      /*!< SPI4 global Interrupt                                              */
 } IRQn_t;
 
 
 #define NVIC    ((NVIC_t    *) NVIC_BASE    )
 #define SYSTICK ((SYSTICK_t *) SYSTICK_BASE )
 
-void NVIC_EnableIRQ(uint8_t irqn);
-void NVIC_DisableIRQ(uint8_t irqn);
-void NVIC_SetPri(uint8_t irqn, uint8_t pri);
+void NVIC_EnableIRQ(IRQn_t irqn);
+void NVIC_DisableIRQ(IRQn_t irqn);
+void NVIC_SetPri(IRQn_t irqn, uint8_t pri);
 
-void SYSTICK_Config()
+void SYSTICK_Config();

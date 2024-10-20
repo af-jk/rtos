@@ -1,32 +1,27 @@
 #include <inttypes.h>
 #include <stdbool.h>
 #include "cm4_periphs.h"
+#include "gpio.h"
+#include "clock.h"
+#include "interrupts.h"
 
-#define CORE_FREQ 16000000UL
-
-// Delay function
 void delay(volatile uint32_t delayTime) {
     while (delayTime--);
 }
 
+void sys_tick_handler(void) {
+        GPIO_Toggle(GPIOA, GPIO_PIN_5);
+}
+
 int main(void) {
-    // Enable GPIOA clock
-    RCC->AHB1ENR |= (1UL);
-    
-    // Set GPIOA Pin 5 as output (MODER register)
-    GPIOA->MODER &= ~(3UL << (5 * 2));  // Clear mode bits for PA5
-    GPIOA->MODER |= (1UL << (5 * 2));   // Set mode to 01 (General purpose output)
+    RCC_Enable_GPIOA_Clk();
 
-    // Set GPIOA Pin 5 to push-pull mode (OTYPER register)
-    GPIOA->OTYPER &= ~(1UL << 5);  // 0 means push-pull
+    GPIO_SetMode(GPIOA, GPIO_PIN_5, GPIO_OUTPUT);
 
-    // Set GPIOA Pin 5 to no pull-up/pull-down (PUPDR register)
-    GPIOA->PUPDR &= ~(3UL << (5 * 2));  // 00 means no pull-up/pull-down
-
-    init_systick();
+    SYSTICK_Config();
 
     // Loop to blink LED
     while (1) {
-        delay(500000);  // Delay
+       // delay(500000);  // Delay
     }
 }

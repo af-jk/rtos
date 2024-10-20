@@ -52,9 +52,11 @@ void STOS_CreateTask (stos_tcb_t *task,
     task->next = stos_cur;
 }
 
+/*
 void STOS_Schedule(void) {
     SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
 }
+*/
 
 void STOS_Run(void) {
     stos_cur->func();
@@ -92,28 +94,3 @@ __asm volatile (
     "BX    lr                    \n"
     );
 }
-
-/*
-void SysTick_Init(void) {
-  // Enable interrupts and select system clock as source
-  SysTick->CTRL |= SysTick_CTRL_TICKINT_Msk;
-  SysTick->CTRL |= SysTick_CTRL_CLKSOURCE_Msk;
-
-  // Set the maximum timer count value to 15.9e3 (so that we have 1ms ticks)
-  SysTick->LOAD = (CORE_FREQUENCY/10) - 1;
-
-  // Enable the systick counter (from here we'll start getting interrupts)
-  SysTick->CTRL |= SysTick_CTRL_ENABLE_Msk;
-
-  // Reset value of timer
-  SysTick->VAL = 0;
-
-  NVIC_SetPriority(SysTick_IRQn, 0U);
-}
-
-void SysTick_Handler(void) {
-    __disable_irq();
-    STOS_Schedule();
-    __enable_irq();
-}
-*/

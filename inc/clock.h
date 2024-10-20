@@ -38,5 +38,4 @@ typedef struct {
 
 #define RCC     ((RCC_t     *) RCC_BASE     )
 
-void init_systick(void);
-void sys_tick_handler(void);
+void RCC_Enable_GPIOA_Clk(void);
