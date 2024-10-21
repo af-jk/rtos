@@ -196,8 +196,5 @@ vectors:
     .weak       debug_mon_handler
     .thumb_set  debug_mon_handler, default_handler
 
-    .weak       pend_sv_handler
-    .thumb_set  pend_sv_handler, default_handler
-
     .weak       sys_tick_handler
     .thumb_set  sys_tick_handler, default_handler

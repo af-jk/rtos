@@ -1,26 +1,36 @@
 #include "interrupts.h"
+#include "clock.h"
 
 void NVIC_EnableIRQ(IRQn_t irqn) {
-    // 0-31, 32-63 ... 239 (each is 5U apart)
-    uint8_t idx     = irqn >> 5U;
-    uint8_t shamt   = irqn & 0x1FU;  // (irqn >> 31)
-    NVIC->ISER[idx] = (1 << shamt);
+    if ((int8_t)irqn >= 0)
+    {
+        // 0-31, 32-63 ... 239 (each is 5U apart)
+        uint8_t idx     = (uint8_t)irqn >> 5U;
+        uint8_t shamt   = irqn & 0x1FU;  // (irqn >> 31)
+        NVIC->ISER[idx] = (1 << shamt);
+    }
 }
 
 void NVIC_DisableIRQ(IRQn_t irqn) {
-    uint8_t idx     = irqn >> 5U;
-    uint8_t shamt   = irqn & 0x1FU;
-    NVIC->ICER[idx] = (1 << shamt);
+    if ((int8_t)irqn >= 0)
+    {
+        uint8_t idx     = (uint8_t)irqn >> 5U;
+        uint8_t shamt   = irqn & 0x1FU;
+        NVIC->ICER[idx] = (1 << shamt);
+    }
 }
 
 // Need to handle negative priority case
 void NVIC_SetPri(IRQn_t irqn, uint8_t pri) {
-    uint8_t idx    = irqn >> 2U; // Map 0-239 to 0-59
-    uint8_t shamt  = (irqn & 3U) << 3U;
-    // Do we need to worry about this being atomic?
-    // There's an instance here where our priority may be 0
-    NVIC->IPR[idx] &= ~(0xFFU << shamt); // Clear the existing priority
-    NVIC->IPR[idx] |= (pri & 0xFFU) << shamt; // Set only the new priority bits and or to not change the other 0-3
+    if ((int8_t)irqn >= 0)
+    {
+        uint8_t idx    = (uint8_t)irqn >> 2U; // Map 0-239 to 0-59
+        uint8_t shamt  = ((uint8_t)irqn & 3U) << 3U;
+        // Do we need to worry about this being atomic?
+        // There's an instance here where our priority may be 0
+        NVIC->IPR[idx] &= ~(0xFFU << shamt); // Clear the existing priority
+        NVIC->IPR[idx] |= (pri & 0xFFU) << shamt; // Set only the new priority bits and or to not change the other 0-3
+    }
 }
 
 /*

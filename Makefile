@@ -2,7 +2,7 @@ CFLAGS  ?=  -W -Wall -Wextra -Werror -Wundef -Wshadow -Wdouble-promotion \
             -Wformat-truncation -fno-common -Wconversion \
             -g3 -O0 -ffunction-sections -fdata-sections \
             -mcpu=cortex-m4 -mthumb -mfloat-abi=soft
-LDFLAGS ?= -T./cm4.ld -nostdlib -nostartfiles --specs nano.specs -lc -lgcc -Wl,--gc-sections
+LDFLAGS ?= -T./cm4.ld -nostdlib -nostartfiles --specs nano.specs -lc -lgcc
 
 SOURCEDIR := src
 SOURCES := $(shell find $(SOURCEDIR) -name '*.c') 

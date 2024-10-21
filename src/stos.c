@@ -1,16 +1,22 @@
 #include "stos.h"
 #include "interrupts.h"
 
+#define PENDSV_PRIORITY_Pos  4U   // PendSV priority is in the upper 4 bits of SHP[7]
+#define PENDSV_PRIORITY_Mask (0xF << PENDSV_PRIORITY_Pos)  // Mask for the priority bits (upper 4 bits)
+
 static stos_tcb_t *stos_cur = NULL;
 uint32_t cur_sp = 0;
 
 void STOS_Init (void) {
-    NVIC_SetPri(pend_sv_IRQn, 15U);
+    //NVIC_SetPri(pend_sv_IRQn, 15U);
+    uint8_t priority = 15U;
+    priority = (priority & 0xFU) << PENDSV_PRIORITY_Pos;
+    SCB->SHP[7] = priority;
 }
 
 void STOS_CreateTask (stos_tcb_t *task,
                       void       (*handler)(void),
-                      uint32_t   *stk,
+                      void       *stk,
                       uint32_t   size) {
     uint32_t *sp = (uint32_t *)((((uint32_t)stk + size) + 7) & ~0x7U);
 
@@ -52,17 +58,16 @@ void STOS_CreateTask (stos_tcb_t *task,
     task->next = stos_cur;
 }
 
-/*
 void STOS_Schedule(void) {
     SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
 }
-*/
 
 void STOS_Run(void) {
     stos_cur->func();
     for (;;) {;}
 }
 
+/*
 __attribute__ ((naked))
 void pend_sv_handler(void) {
 __asm volatile (
@@ -94,3 +99,4 @@ __asm volatile (
     "BX    lr                    \n"
     );
 }
+*/
