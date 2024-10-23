@@ -57,8 +57,10 @@ int main(void) {
                     &t2_stack,
                     sizeof(t2_stack));
 
-    STOS_Schedule();
-    STOS_Run();
+    SCB->ICSR |= (1U << 26);
+
+    // STOS_Schedule();
+    // STOS_Run();
 
     // Loop to blink LED
     while (1) {

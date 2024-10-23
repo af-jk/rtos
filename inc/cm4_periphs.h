@@ -9,7 +9,7 @@
 // Going to copy ARM's way for now
 
 // "Internal" Peripherals
-#define SCB_BASE     (0xE000E000UL)
+#define SCB_BASE     (0xE000ED00UL)
 
 // "External Peripherals"
 #define PERIPH_BASE     (0x40000000UL)

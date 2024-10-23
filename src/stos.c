@@ -60,6 +60,7 @@ void STOS_CreateTask (stos_tcb_t *task,
 
 void STOS_Schedule(void) {
     SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
+    SCB->ICSR |= 4;
 }
 
 void STOS_Run(void) {
