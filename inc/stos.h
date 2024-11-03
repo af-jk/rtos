@@ -15,11 +15,13 @@ typedef struct stos_tcb {
     void            (*func)(void);
 } stos_tcb_t;
 
+typedef struct stos_kernel {
+    uint32_t amount_psp_alloc;
+} stos_kernel_t;
+
 void STOS_Init(void);
 void STOS_CreateTask(stos_tcb_t *task,
                      void       (*handler)(void),
-                     void       *stk,
                      uint32_t   size);
 void STOS_Schedule(void);
 void STOS_Run(void);
-//void pend_sv_handler(void);
