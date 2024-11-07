@@ -5,7 +5,8 @@ MEMORY {
     FLASH(rx)  : ORIGIN = 0x08000000, LENGTH = 512k
 }
 
-_estack = ORIGIN(SRAM) + LENGTH(SRAM);
+_mstack = ORIGIN(SRAM) + LENGTH(SRAM);
+_pstack = ORIGIN(SRAM) + LENGTH(SRAM)/2;
 
 HIDDEN(__vector_align__ = 128);
 HIDDEN(__vector_table_size = (16 + 240) * 4);

@@ -15,7 +15,7 @@
     .global _start
     .type _start, %function
 _start:
-    ldr     sp, =_estack
+    ldr     sp, =_mstack
     ldr     r0, =__s_data
     ldr     r1, =__e_data
     ldr     r2, =__si_data
@@ -45,6 +45,19 @@ CompareBssAddress:
     cmp     r1, r2
     bcc     ZeroBssLoop
 
+    // Set MSP
+    ldr     r0, =_mstack
+    msr     msp, r0
+
+    // Set PSP
+    ldr     r1, =_pstack
+    msr     psp, r1
+
+    // Would set us into PSP mode, would rather stay in MSP mode for now
+    // mov     r0, #0x3
+    // msr     control, r0
+    // isb
+
     bl      main
     bx      lr
 .size _start, .-_start
@@ -58,7 +71,7 @@ Infinite_Loop:
     .section .rodata.vectors
 vectors:
     // Arm Exceptions
-    .word _estack
+    .word _mstack
     .word _start
     .word nmi_handler
     .word hard_flt_handler

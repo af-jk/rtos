@@ -19,16 +19,16 @@ void bus_flt_handler(void) {
 }
 
 void sys_tick_handler(void) {
-    //GPIO_Toggle(GPIOA, GPIO_PIN_5);
     STOS_Schedule();
 }
 
 void main_ledOn(void) {
     while (1) GPIO_SetHigh(GPIOA, GPIO_PIN_5);
+
 }
 
 void main_ledOff(void) {
-    while (1) GPIO_SetLow(GPIOA, GPIO_PIN_5);
+	while (1) GPIO_SetLow(GPIOA, GPIO_PIN_5);
 }
 
 int main(void) {
@@ -39,17 +39,16 @@ int main(void) {
     // Enable UsageFault and BusFault exceptions
     SCB->SHCSR |= (1 << 17) | (1 << 18); // Enable BusFault and UsageFault handlers
 
-    STOS_Init();
-
-    stos_tcb_t T1;
+    stos_tcb_t T1 = {0};
     STOS_CreateTask(&T1,
                     &main_ledOn,
                     40);
 
-    stos_tcb_t T2;
+    stos_tcb_t T2 = {0};
     STOS_CreateTask(&T2,
                     &main_ledOff,
                     40);
+    STOS_Init();
     STOS_Run();
 
     // Loop to blink LED

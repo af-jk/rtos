@@ -5,6 +5,8 @@
 #define PENDSV_PRIORITY_Mask (0xF << PENDSV_PRIORITY_Pos)  // Mask for the priority bits (upper 4 bits)
 #define BYTE_ALIGN           0x7U
 
+extern uint32_t *_pstack;
+
 static stos_tcb_t *stos_cur = NULL;
 static stos_kernel_t stos_kernel;
 
@@ -13,6 +15,8 @@ void STOS_Init (void) {
     uint8_t priority = 15U;
     priority = (priority & 0xFU) << PENDSV_PRIORITY_Pos;
     SCB->SHP[7] = priority;
+
+    SYSTICK_Config();
 }
 
 void STOS_CreateTask (stos_tcb_t *task,
@@ -27,7 +31,7 @@ void STOS_CreateTask (stos_tcb_t *task,
     // PC and LR are required, the others are filled in just for easier debugging
     *(--init_sp) = (1U << 24);        // xPSR
     *(--init_sp) = (uint32_t)handler; // PC
-    *(--init_sp) = 0xFFFFFFFDU;       // LR - needs to be updated for PSP/MSP
+    *(--init_sp) = 0x0000000EU;       // LR - thread doesn't return (infinite loop so this doesn't matter)
     *(--init_sp) = 0x0000000CU;       // R12
     *(--init_sp) = 0x0000000BU;       // R11
     *(--init_sp) = 0x0000000AU;       // R10
@@ -79,42 +83,82 @@ void STOS_Schedule(void) {
     SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
 }
 
+__attribute__((naked))
 void STOS_Run(void) {
-    stos_cur->func();
-    for (;;) {;}
+	__asm volatile(
+        " LDR   r1, =stos_cur       \n" // store addr
+        " LDR   r0, [r1, #0x00]     \n" // load val
+        " LDR   r1, [r0, #0x00]     \n" // load val again
+        " MSR   psp, r1             \n" // set psp to stos_cur->sp
+
+        " MOV   r1, #2              \n"
+        " MSR   control , r1        \n"
+
+        // Forever loop
+        " l:                        \n"
+        " NOP                       \n"
+        " B l                       \n"
+    );
 }
 
+/*
 __attribute__ ((naked))
 void pend_sv_handler(void) {
-__asm volatile (
-    "CPSID I                     \n"
+   __asm volatile (
+        " CPSID I                   \n"
 
-    // Move MSP to R0 (save the current SP in R0)
-    "MRS r0, msp                 \n"
-    "PUSH {r4-r11}               \n"
+        // Check to see if we're starting sched. for first time
+        //" LDR   r1, =stos_cur       \n" // store addr
+        //" LDR   r0, [r1, #0x00]     \n" // load val
+        //" LDR   r1, [r0, #0x00]     \n" // load val again
+        //" MRS   r2, psp				\n"
+        //" CMP   r1, r2              \n"
+        //" BNE   PendSV_Init         \n"
+        " PUSH  {r4-r11}            \n"
 
-    // stos_cur->sp = sp
-    // set the stos_cur->sp to the current MSP value
-    // (stos_cur in this context is what was previously running)
-    "LDR   r1,=stos_cur          \n"
-    "LDR   r1,[r1,#0x00]         \n"
-    "STR   r0,[r1,#0x00]         \n"
+		" LDR   r1, =stos_cur       \n" // store addr
+		" LDR   r0, [r1, #0x00]     \n" // load val
+		" LDR   r1, [r0, #0x00]     \n" // load val again
+		" MRS   r1, psp             \n" // set stos_cur->sp = sp
+		//" MOV   r0, sp              \n"
 
-    // stos_cur = stos_cur->next
-    "LDR   r0, =stos_cur         \n"
-    "LDR   r1, [r0]              \n"
-    "LDR   r1, [r1, #4]          \n"
-    "STR   r1, [r0]              \n"
+//        - If sched for first time, set sp = stos_cur ->next ->sp
+//        because we havent scheduled yet and need to get into our loop
+//        - otherwise this is normal operation 
 
-    // sp = stos_cur->sp
-    "LDR   r0, =stos_cur         \n"
-    "LDR   r1, [r0]              \n"
-    "LDR   r2, [r1]              \n"
-    "MSR   msp, r2               \n"
+        " LDR   r1, =stos_cur       \n"
+        " LDR   r0, [r1, #0x00]     \n"
+        " LDR   r1, [r0, #0x04]     \n"
+	    " LDR   r0, [r1, #0x00]     \n"
+		" MSR   psp, r0				\n"
+		//" MOV   sp, r0              \n"
 
-    "POP {r4-r11}                \n"
+        " CPSIE  I                  \n"
+        " BX     LR                 \n"
+    );
+}
 
-    "CPSIE I                     \n"
-    "BX    lr                    \n"
+*/
+__attribute__ ((naked))
+void pend_sv_handler(void) {
+    __asm volatile (
+        " CPSID I                   \n" // Disable interrupts
+
+        // Save context of the current task
+        " MRS   r0, psp             \n" // Get current PSP value
+        " STMDB r0!, {r4-r11}       \n" // Store registers r4-r11 to task stack
+        " LDR   r1, =stos_cur       \n" // Load address of stos_cur
+        " LDR   r2, [r1]            \n" // Get stos_cur
+        " STR   r0, [r2]            \n" // Update stos_cur->sp with new PSP
+
+        // Switch to the next task
+        " LDR   r2, [r2, #4]        \n" // stos_cur->next
+        " STR   r2, [r1]            \n" // Update stos_cur to the next task
+        " LDR   r0, [r2]            \n" // Load next task's sp into r0
+        " LDMIA r0!, {r4-r11}       \n" // Restore r4-r11 from new task's stack
+        " MSR   psp, r0             \n" // Set PSP to the new task’s sp
+
+        " CPSIE  I                  \n" // Enable interrupts
+        " BX     lr                 \n" // Return from exception
     );
 }

@@ -61,14 +61,9 @@ void SYSTICK_Config(void) {
         [23:0] -> RELOAD Value
         If we want 1ms ticks, set to the mxaimum timer count value 15.9e3
     */
-   SYSTICK->LOAD &= ~(0xFFFFFFUL); // Clear LOAD value
-   SYSTICK->LOAD |= (CORE_FREQ/10) - 1; // Set the LOAD value
+    SYSTICK->LOAD |= (CORE_FREQ/10) - 1; // Set the LOAD value
 
-    /*  SYSTICK LOAD: 23 - 0
-        [23:0] -> RELOAD Value
-        If we want 1ms ticks, set to the mxaimum timer count value 15.9e3
-    */
-   SYSTICK->VAL &= ~(0xFFFFFFUL); // Clear VAL value= 0;
+    SYSTICK->VAL &= ~(0xFFFFFFUL); // Clear VAL value= 0;
 
-   SYSTICK->CTRL |= 1UL; // Enable SYSTICK
+    SYSTICK->CTRL |= 1UL; // Enable SYSTICK
 }

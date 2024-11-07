@@ -2,8 +2,8 @@
 
 #include "cm4_periphs.h"
 
-#define NVIC_BASE    (SCB_BASE + 0x0100UL)
-#define SYSTICK_BASE (SCB_BASE + 0x0010UL)
+#define NVIC_BASE    (SCS_BASE + 0x0100UL)
+#define SYSTICK_BASE (SCS_BASE + 0x0010UL)
 
 typedef struct {
     volatile uint32_t ISER[8U];

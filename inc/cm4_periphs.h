@@ -7,9 +7,10 @@
 */
 
 // Going to copy ARM's way for now
-
+/* Memory mapping of Core Hardware */
+#define SCS_BASE        (0xE000E000UL)          /*!< System Control Space Base Address */
 // "Internal" Peripherals
-#define SCB_BASE     (0xE000ED00UL)
+#define SCB_BASE        (SCS_BASE +  0x0D00UL)  /*!< System Control Block Base Address */
 
 // "External Peripherals"
 #define PERIPH_BASE     (0x40000000UL)
