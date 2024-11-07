@@ -81,6 +81,10 @@ void STOS_CreateTask (stos_tcb_t *task,
 
 void STOS_Schedule(void) {
     SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
+    __asm volatile(
+        " MOV   r1, #2              \n"
+        " MSR   control , r1        \n"
+    );
 }
 
 __attribute__((naked))
@@ -91,8 +95,8 @@ void STOS_Run(void) {
         " LDR   r1, [r0, #0x00]     \n" // load val again
         " MSR   psp, r1             \n" // set psp to stos_cur->sp
 
-        " MOV   r1, #2              \n"
-        " MSR   control , r1        \n"
+        // " MOV   r1, #2              \n"
+        // " MSR   control , r1        \n"
 
         // Forever loop
         " l:                        \n"
@@ -147,14 +151,25 @@ void pend_sv_handler(void) {
         // Save context of the current task
         " MRS   r0, psp             \n" // Get current PSP value
         " STMDB r0!, {r4-r11}       \n" // Store registers r4-r11 to task stack
-        " LDR   r1, =stos_cur       \n" // Load address of stos_cur
-        " LDR   r2, [r1]            \n" // Get stos_cur
-        " STR   r0, [r2]            \n" // Update stos_cur->sp with new PSP
+
+        " LDR   r1, =stos_cur       \n" // get *stos_cur
+        " LDR   r2, [r1]     \n" // get stos_cur
+        " LDR   r3, [r2]     \n" // get stos_cur->sp
+        " MOV   r3, r0              \n" // set stos_cur->sp = old psp
+
+        // " LDR   r1, =stos_cur       \n" // Load address of stos_cur
+        // " LDR   r2, [r1]            \n" // Get stos_cur
+
+        // " STR   r0, [r2]            \n" // Update stos_cur->sp with new PSP
 
         // Switch to the next task
-        " LDR   r2, [r2, #4]        \n" // stos_cur->next
-        " STR   r2, [r1]            \n" // Update stos_cur to the next task
-        " LDR   r0, [r2]            \n" // Load next task's sp into r0
+        // " LDR   r2, [r2, #4]        \n" // stos_cur->next
+        // " STR   r2, [r1]            \n" // Update stos_cur to the next task
+        // " LDR   r0, [r2]            \n" // Load next task's sp into r0
+
+        " LDR   r3, [r2, #4]        \n" // get stos_cur->next
+        " LDR   r0, [r3]            \n" // get stos_cur->next->sp
+
         " LDMIA r0!, {r4-r11}       \n" // Restore r4-r11 from new task's stack
         " MSR   psp, r0             \n" // Set PSP to the new task’s sp
 
