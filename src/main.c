@@ -31,13 +31,20 @@ void main_ledOff(void) {
 	while (1) GPIO_SetLow(GPIOA, GPIO_PIN_5);
 }
 
+void svc_handler(void) {
+    __asm volatile(
+        "MOV LR, #0xFFFFFFFD \n"
+        "BX LR \n"              
+    );
+}
+
 int main(void) {
     RCC_Enable_GPIOA_Clk();
 
     GPIO_SetMode(GPIOA, GPIO_PIN_5, GPIO_OUTPUT);
 
     // Enable UsageFault and BusFault exceptions
-    SCB->SHCSR |= (1 << 17) | (1 << 18); // Enable BusFault and UsageFault handlers
+    SCB->SHCSR |= (1 << 17) | (1 << 18);
 
     stos_tcb_t T1 = {0};
     STOS_CreateTask(&T1,
@@ -51,8 +58,5 @@ int main(void) {
     STOS_Init();
     STOS_Run();
 
-    // Loop to blink LED
-    while (1) {
-       // delay(500000);  // Delay
-    }
+    for (;;) {}
 }
