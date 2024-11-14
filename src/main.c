@@ -23,6 +23,7 @@ void sys_tick_handler(void) {
 }
 
 void main_ledOn(void) {
+	uint32_t a = 0xAAAAAAAAU;
     while (1) GPIO_SetHigh(GPIOA, GPIO_PIN_5);
 
 }
