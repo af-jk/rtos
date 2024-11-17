@@ -142,6 +142,9 @@ void pend_sv_handler(void) {
 		" MSR	psp, r2			\n" // psp = end of stack frame (r0 - literally (xPSR, RA, LR, R1, R3, R2, R1, R0 <---))
 
         // Set stos_cur = stos_cur->next and stos_cur->next = stos_cur
+        " LDR   r0, = stos_cur  \n" // stos_cur, r1 already has stos_cur->next
+        " STR   r1, [r0, #0x00] \n" // store stos_cur into stos_cur->next
+
 		" CPSIE	I				\n"
 		" BX	lr				\n"
     );
