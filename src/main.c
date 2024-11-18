@@ -23,7 +23,7 @@ void sys_tick_handler(void) {
 }
 
 void main_tick1(void) {
-    while (1) GPIO_SetLow(GPIOA, GPIO_PIN_5);
+    while (1) GPIO_SetHigh(GPIOA, GPIO_PIN_5);
 }
 
 void main_tick2(void) {
@@ -39,7 +39,7 @@ void main_tick4(void) {
 }
 
 void main_tick5(void) {
-    while (1) GPIO_SetHigh(GPIOA, GPIO_PIN_5);
+    while (1) GPIO_SetLow(GPIOA, GPIO_PIN_5);
 }
 
 void svc_handler(void) {
@@ -60,29 +60,34 @@ int main(void) {
     stos_tcb_t T1 = {0};
     STOS_CreateTask(&T1,
                     &main_tick1,
+                    5,
                     40);
 
     stos_tcb_t T2 = {0};
     STOS_CreateTask(&T2,
                     &main_tick2,
+                    5,
                     40);
 
     stos_tcb_t T3 = {0};
     STOS_CreateTask(&T3,
                     &main_tick3,
+                    5,
                     40);
 
     stos_tcb_t T4 = {0};
     STOS_CreateTask(&T4,
                     &main_tick4,
+                    5,
                     40);
 
     stos_tcb_t T5 = {0};
     STOS_CreateTask(&T5,
                     &main_tick5,
+                    5,
                     40);
 
-    STOS_Init();
+    STOS_Init(STOS_IDLE_DEFAULT_CONFIG);
     STOS_Run();
 
     for (;;) {}
