@@ -51,6 +51,7 @@ void svc_handler(void) {
 
 int main(void) {
     RCC_Enable_GPIOA_Clk();
+    RCC_Enable_USART2_Clk();
 
     GPIO_SetMode(GPIOA, GPIO_PIN_5, GPIO_OUTPUT);
 

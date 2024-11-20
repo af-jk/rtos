@@ -39,3 +39,4 @@ typedef struct {
 #define RCC     ((RCC_t     *) RCC_BASE     )
 
 void RCC_Enable_GPIOA_Clk(void);
+void RCC_Enable_USART2_Clk(void);
