@@ -37,6 +37,7 @@ typedef struct stos_tcb {
     uint32_t    pri;
     uint32_t    state;
     void        (*func)(void);
+    uint32_t    delay_amt;
 
     // intrusive list item
     stos_list_t list;
@@ -47,6 +48,8 @@ void STOS_CreateTask(stos_tcb_t *task,
                      void       (*handler)(void),
                      uint32_t   pri,
                      uint32_t   size);
-void STOS_AddTask(stos_tcb_t *task);
+void STOS_AddTask(stos_tcb_t *task, stos_list_t *task_list);
+void STOS_RemoveTask(stos_tcb_t *task, stos_list_t *task_list);
+void STOS_TaskDelay(uint32_t delay);
 void STOS_Schedule(void);
 void STOS_Run(void);

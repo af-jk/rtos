@@ -42,3 +42,5 @@ typedef struct {
 } SCB_t;
 
 #define SCB     ((SCB_t     *) SCB_BASE     )
+
+void Enable_Bus_Usage_Flts(void);
