@@ -22,7 +22,19 @@ typedef struct USART_handle_s{
     USART_t *port;
 } USART_handle_t;
 
-#define USART2 ((USART_t *)USART2_BASE);
+#define USART2 ((USART_t *)USART2_BASE)
+
+/** SR Register Bit Defines **/
+#define USART_SR_PE      (0x1UL) << (0U)
+#define USART_SR_FE      (0x1UL) << (1U)
+#define USART_SR_NF      (0x1UL) << (2U)
+#define USART_SR_ORE     (0x1UL) << (3U)
+#define USART_SR_IDLE    (0x1UL) << (4U)
+#define USART_SR_RXNE    (0x1UL) << (5U)
+#define USART_SR_TC      (0x1UL) << (6U)
+#define USART_SR_TXE     (0x1UL) << (7U)
+#define USART_SR_LBD     (0x1UL) << (8U)
+#define USART_SR_CTS     (0x1UL) << (9U)
 
 /** CR1 Register Bit Defines **/
 #define USART_CR1_SBK    (0x1UL) << (0U)
@@ -39,3 +51,6 @@ typedef struct USART_handle_s{
 #define USART_CR1_M      (0x1UL) << (11U)
 #define USART_CR1_UE     (0x1UL) << (12U)
 #define USART_CR1_OVER8  (0x1UL) << (13U)
+
+
+void USART_init(USART_t *port,uint32_t baudrate);
