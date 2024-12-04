@@ -82,6 +82,10 @@ int main(void) {
 
     USART_init(USART2,115200);
 
+    while(1) {
+        printf("Hello World\r\n");
+    }
+
 
     GPIO_SetMode(GPIOA, GPIO_PIN_5, GPIO_OUTPUT);
 
@@ -122,3 +126,11 @@ int main(void) {
 
     for (;;) {}
 }
+
+int _write(int fd, char *ptr, size_t len) {
+    (void) fd;
+    if (fd == 1) {
+        USART_transmit(USART2,(uint8_t *) ptr, len);
+    }
+    return len;
+ }
