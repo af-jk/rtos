@@ -92,4 +92,6 @@ SECTIONS
     } > SRAM
 
     /* at the end here I need to have some sort of safety check */
+    end = .;
+    _end = end;
 }
