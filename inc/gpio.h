@@ -10,7 +10,7 @@
 typedef enum {
     GPIO_INPUT,
     GPIO_OUTPUT,
-    GPIO_ALTERNATE,
+    GPIO_AF,
     GPIO_ANALOG,
 } GPIO_MODE_t;
 
@@ -33,6 +33,25 @@ typedef enum {
     GPIO_PIN_15,
 } GPIO_PIN_t;
 
+typedef enum {
+    GPIO_AF_0,
+    GPIO_AF_1,
+    GPIO_AF_2,
+    GPIO_AF_3,
+    GPIO_AF_4,
+    GPIO_AF_5,
+    GPIO_AF_6,
+    GPIO_AF_7,
+    GPIO_AF_8,
+    GPIO_AF_9,
+    GPIO_AF_10,
+    GPIO_AF_11,
+    GPIO_AF_12,
+    GPIO_AF_13,
+    GPIO_AF_14,
+    GPIO_AF_15,
+} GPIO_AF_t;
+
 typedef struct {
   volatile uint32_t MODER;
   volatile uint32_t OTYPER;
@@ -48,6 +67,7 @@ typedef struct {
 #define GPIOA   ((GPIO_t    *) GPIOA_BASE   )
 
 void GPIO_SetMode(GPIO_t *port, GPIO_PIN_t pin, GPIO_MODE_t mode);
+void GPIO_SetAF(GPIO_t *port, GPIO_PIN_t pin, GPIO_AF_t);
 void GPIO_SetHigh(GPIO_t *port, GPIO_PIN_t pin);
 void GPIO_SetLow(GPIO_t *port, GPIO_PIN_t pin);
 void GPIO_Toggle(GPIO_t *port, GPIO_PIN_t pin);
