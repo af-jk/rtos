@@ -33,12 +33,24 @@ void USART_init(USART_t *port, uint32_t baudrate)
     GPIO_SetMode(GPIOA,rx,GPIO_AF);
     GPIO_SetAF(GPIOA,rx,GPIO_AF_7);
 
-    port->USART_BRR = (uint32_t) (CORE_FREQ / (16 * baudrate));
+    port->USART_BRR = USART_BRR_DIV(CORE_FREQ,baudrate);
 
     port->USART_CR1 |= (USART_CR1_UE | USART_CR1_TE | USART_CR1_RE);
 }
 
-void USART_transmit()
+void USART_transmit_byte(USART_t *port, uint8_t byte)
 {
+    while(!(port->USART_SR & USART_SR_TXE))
+    {
+        (void) 0;
+    }
+    port->USART_DR = byte;
+}
 
+void USART_transmit(USART_t *port, uint8_t *buf, size_t len)
+{
+    while (len-- > 0)
+    {
+        USART_transmit_byte(port, *(uint8_t *) buf++);
+    }
 }
