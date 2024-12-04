@@ -1,11 +1,13 @@
 #include <inttypes.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
 #include "cm4_periphs.h"
 #include "gpio.h"
 #include "clock.h"
 #include "interrupts.h"
 #include "stos.h"
-
+#include "usart.h"
 void delay(volatile uint32_t delayTime) {
     while (delayTime--);
 }
@@ -23,23 +25,49 @@ void sys_tick_handler(void) {
 }
 
 void main_tick1(void) {
-    while (1) GPIO_SetHigh(GPIOA, GPIO_PIN_5);
+    while (1) {
+        GPIO_SetHigh(GPIOA, GPIO_PIN_5);
+
+
+        char buf[] = "Task 1\r\n";
+        USART_transmit(USART2,buf,strlen(buf));
+    }
 }
 
 void main_tick2(void) {
-    while (1) GPIO_SetLow(GPIOA, GPIO_PIN_5);
+    while (1) {
+        GPIO_SetLow(GPIOA, GPIO_PIN_5);
+
+        char buf[] = "Task 2\r\n";
+        USART_transmit(USART2,buf,strlen(buf));
+    }
 }
 
 void main_tick3(void) {
-    while (1) GPIO_SetLow(GPIOA, GPIO_PIN_5);
+    while (1) {
+        GPIO_SetLow(GPIOA, GPIO_PIN_5);
+
+        char buf[] = "Task 3\r\n";
+        USART_transmit(USART2,buf,strlen(buf));
+    }
 }
 
 void main_tick4(void) {
-    while (1) GPIO_SetLow(GPIOA, GPIO_PIN_5);
+    while (1) {
+        GPIO_SetLow(GPIOA, GPIO_PIN_5);
+
+        char buf[] = "Task 4\r\n";
+        USART_transmit(USART2,buf,strlen(buf));
+    }
 }
 
 void main_tick5(void) {
-    while (1) GPIO_SetLow(GPIOA, GPIO_PIN_5);
+    while (1) {
+        GPIO_SetLow(GPIOA, GPIO_PIN_5);
+
+        char buf[] = "Task 5\r\n";
+        USART_transmit(USART2,buf,strlen(buf));
+    }
 }
 
 void svc_handler(void) {
@@ -51,7 +79,9 @@ void svc_handler(void) {
 
 int main(void) {
     RCC_Enable_GPIOA_Clk();
-    RCC_Enable_USART2_Clk();
+
+    USART_init(USART2,115200);
+
 
     GPIO_SetMode(GPIOA, GPIO_PIN_5, GPIO_OUTPUT);
 
@@ -76,8 +106,7 @@ int main(void) {
                     5,
                     40);
 
-    stos_tcb_t T4 = {0};
-    STOS_CreateTask(&T4,
+    stos_tcb_t T4 = {0}; STOS_CreateTask(&T4,
                     &main_tick4,
                     5,
                     40);
