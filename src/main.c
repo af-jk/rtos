@@ -28,9 +28,7 @@ void main_tick1(void) {
     while (1) {
         GPIO_SetHigh(GPIOA, GPIO_PIN_5);
 
-
-        char buf[] = "Task 1\r\n";
-        USART_transmit(USART2,buf,strlen(buf));
+        printf("Task 1\r\n");
     }
 }
 
@@ -38,8 +36,7 @@ void main_tick2(void) {
     while (1) {
         GPIO_SetLow(GPIOA, GPIO_PIN_5);
 
-        char buf[] = "Task 2\r\n";
-        USART_transmit(USART2,buf,strlen(buf));
+        printf("Task 2\r\n");
     }
 }
 
@@ -47,8 +44,7 @@ void main_tick3(void) {
     while (1) {
         GPIO_SetLow(GPIOA, GPIO_PIN_5);
 
-        char buf[] = "Task 3\r\n";
-        USART_transmit(USART2,buf,strlen(buf));
+        printf("Task 3\r\n");
     }
 }
 
@@ -56,8 +52,7 @@ void main_tick4(void) {
     while (1) {
         GPIO_SetLow(GPIOA, GPIO_PIN_5);
 
-        char buf[] = "Task 4\r\n";
-        USART_transmit(USART2,buf,strlen(buf));
+        printf("Task 4\r\n");
     }
 }
 
@@ -65,8 +60,7 @@ void main_tick5(void) {
     while (1) {
         GPIO_SetLow(GPIOA, GPIO_PIN_5);
 
-        char buf[] = "Task 5\r\n";
-        USART_transmit(USART2,buf,strlen(buf));
+        printf("Task 5\r\n");
     }
 }
 
@@ -82,9 +76,6 @@ int main(void) {
 
     USART_init(USART2,115200);
 
-    while(1) {
-        printf("Hello World\r\n");
-    }
 
 
     GPIO_SetMode(GPIOA, GPIO_PIN_5, GPIO_OUTPUT);
@@ -96,30 +87,30 @@ int main(void) {
     STOS_CreateTask(&T1,
                     &main_tick1,
                     5,
-                    40);
+                    80);
 
     stos_tcb_t T2 = {0};
     STOS_CreateTask(&T2,
                     &main_tick2,
                     5,
-                    40);
+                    80);
 
     stos_tcb_t T3 = {0};
     STOS_CreateTask(&T3,
                     &main_tick3,
                     5,
-                    40);
+                    80);
 
     stos_tcb_t T4 = {0}; STOS_CreateTask(&T4,
                     &main_tick4,
                     5,
-                    40);
+                    80);
 
     stos_tcb_t T5 = {0};
     STOS_CreateTask(&T5,
                     &main_tick5,
                     5,
-                    40);
+                    80);
 
     STOS_Init(STOS_IDLE_DEFAULT_CONFIG);
     STOS_Run();
