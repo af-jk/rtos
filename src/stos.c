@@ -121,7 +121,11 @@ void STOS_RemoveTask(stos_tcb_t * const task) {
     // Removing from top
     if ((*head)->prev == NULL) {
         (*head)->next->prev = NULL;
-        stos_ker.list_ready_head = (*head)->next;
+        if (task->state == TASK_READY) {
+            stos_ker.list_ready_head = (*head)->next;
+        } else {
+            stos_ker.list_blocked_head = (*head)->next;
+        }
         (*head)->next = NULL;
         return;
     }
@@ -175,9 +179,11 @@ void STOS_Schedule() {
 
     // If the current task has been blocked, switch to the next highest priority
     if (stos_ker.active_task->state == TASK_BLOCKED) {
-        stos_ker.next_task = ready_task_head;
         STOS_RemoveTask(ready_task_head);
+
+        stos_ker.next_task = ready_task_head;
         stos_ker.next_task->state = TASK_RUNNING;
+
         SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
         return;
     }
@@ -191,6 +197,7 @@ void STOS_Schedule() {
     // Set stos next to the highest priority task of the ready list
     stos_ker.next_task           = ready_task_head;
     stos_ker.next_task->state    = TASK_RUNNING;
+
     STOS_AddTask(stos_ker.active_task, TASK_READY);
 
     SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
@@ -222,21 +229,18 @@ void svc_handler(void) {
 }
 
 void sys_tick_handler(void) { 
-    /*
-    stos_list_t *run;
-    for (run = stos_blocked_list.next; run != &stos_blocked_list; run = run->next) {
-        stos_tcb_t *run_tcb = STOS_LIST_CONTAINER_GET_TCB(run, stos_tcb_t, list);
-        run_tcb->timeout--;
+    stos_tcb_t *runner = stos_ker.list_blocked_head;
 
-        if (run_tcb->timeout == 0) {
-            // Switch to ready and remove from blocked
-            STOS_RemoveTask(run_tcb, &stos_blocked_list);
-            // Have a bug when adding task
-            STOS_AddTask(run_tcb, &stos_ready_list);
-            run_tcb->state = TASK_READY;
+    while (runner != NULL) {
+        stos_tcb_t **head = &runner;
+        (*head)->timeout--;
+        if ((*head)->timeout == 0) {
+            STOS_RemoveTask((*head));
+            STOS_AddTask((*head), TASK_READY);
         }
+        runner = runner->next;
     }
-    */
+
     STOS_Schedule(); 
 }
 
