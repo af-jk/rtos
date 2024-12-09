@@ -248,31 +248,35 @@ __attribute__((naked)) void pend_sv_handler(void) {
         // stack xPSR, RA, LR, R12, R3-R0 and will update the PSP.
         // we need to further push registers r11-r4 and then update the active_task->sp
 
-        " MRS	r0, psp             \n" // Store old PSP in r0
+        // Store the context of the active_task
+        " MRS	r0, psp             \n" // Store PSP in r0
         " STMDB r0!, {r4-r11}       \n" // push r4-r11 onto stack based on r0 (r0 gets updated to new stack addr)
         " MSR	psp, r0             \n" // update psp to be the new stack addr
 
+        // Update the sp of the active task after storing context
         " LDR   r1, =stos_ker       \n"
         " LDR   r2, [r1, #0x0C]     \n" // r2 = active_task
-        " LDR   r3, [r2, #0x00]     \n" // r3 = active_task->sp
-        " STR 	r0, [r3, #0x00]		\n" // active_task->sp = psp
+        " STR 	r0, [r2, #0x00]		\n" // active_task->sp = psp
 
+        // Switch desired SP to be that of the next task
     	" LDR 	r0, = stos_ker		\n"
         " LDR   r3, [r0, #0x08]     \n" // r3 = next_task
         " LDR   r1, [r3, #0x00]     \n" // r1 = next_task->sp
 
+        // Set the active task as the next task, optionally null out the next task
         " STR   r3, [r0, #0x0C]     \n" // store r3 (next_task) to addr of active_task
         " MOV   r4, 0               \n"
         " STR   r4, [r0, #0x08]     \n" // store r4 (null) to addr of next_task 
 
-        // Pop r11-r4 from stack into registers
+        // Pop the context of the "next task" (now active task) r11-r4 from stack into registers
         " LDMIA r1!, {r4-r11}       \n"
 
-        // Update the PSP to be the new R0 value
+        // Update the PSP of the "next task (now active task)" to be the new R0 value
         " MSR	psp, r1             \n" // psp = end of stack frame (r0
                                         // - (xPSR, RA, LR,
                                         // R1, R3, R2, R1, R0 <---))
 
         " CPSIE	I                   \n"
+        // Return to context of active task
         " BX	lr                  \n");
 }
