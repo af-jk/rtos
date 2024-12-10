@@ -12,6 +12,9 @@ void stos_idle_task(void) {}
 
 void STOS_CreateTask(stos_tcb_t * const task, void (*handler)(void), uint32_t pri,
                      uint32_t size) {
+
+    if (task == NULL || handler == NULL) return;
+
     uint32_t *psp;
     __asm volatile(" MRS   %[psp_var], psp    \n" : [psp_var] "=r"(psp) : :);
     uint32_t *init_sp = (uint32_t *)((uint32_t)psp);
@@ -59,6 +62,8 @@ void STOS_CreateTask(stos_tcb_t * const task, void (*handler)(void), uint32_t pr
 }
 
 void STOS_AddTask(stos_tcb_t * const task, uint32_t state) {
+    if (task == NULL) return;
+
     stos_tcb_t **head = &(stos_ker.list_ready_head);
     if (state == TASK_BLOCKED) {
         head = &(stos_ker.list_blocked_head);
@@ -105,6 +110,8 @@ void STOS_AddTask(stos_tcb_t * const task, uint32_t state) {
 }
 
 void STOS_RemoveTask(stos_tcb_t * const task) {
+    if (task == NULL) return;
+
     stos_tcb_t **head = &(stos_ker.list_ready_head);
 
     if (task->state == TASK_BLOCKED) {
@@ -145,11 +152,11 @@ void STOS_RemoveTask(stos_tcb_t * const task) {
     (*head)->prev = NULL;
 }
 
-// Set active task to blocked state for timeout amt
+// Set active task (which is in running state) to blocked state for timeout amt
 void STOS_TimeoutTask(uint32_t timeout) {
-    STOS_RemoveTask(stos_ker.active_task);
     stos_ker.active_task->timeout = timeout;
     STOS_AddTask(stos_ker.active_task, TASK_BLOCKED);
+    STOS_Schedule();
 }
 
 void STOS_Init(void (*handler)(void), uint32_t size) {

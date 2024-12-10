@@ -14,8 +14,9 @@ static int i = 0;
 void main_tick1(void) {
     while (1) {
         i++;
-        if (i == 10) {
-            STOS_TimeoutTask(20);
+        if (i == 50) {
+        	STOS_TimeoutTask(20);
+            i = 0;
         }
         GPIO_SetHigh(GPIOA, GPIO_PIN_5);
     }
