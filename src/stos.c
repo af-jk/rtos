@@ -8,7 +8,9 @@
 
 static stos_kernel_t stos_ker;
 
-void stos_idle_task(void) {}
+void stos_idle_task(void) {
+	for (;;);
+}
 
 void STOS_CreateTask(stos_tcb_t * const task, void (*handler)(void), uint32_t pri,
                      uint32_t size) {
@@ -64,49 +66,77 @@ void STOS_CreateTask(stos_tcb_t * const task, void (*handler)(void), uint32_t pr
 void STOS_AddTask(stos_tcb_t * const task, uint32_t state) {
     if (task == NULL) return;
 
-    stos_tcb_t **head = &(stos_ker.list_ready_head);
-    if (state == TASK_BLOCKED) {
-        head = &(stos_ker.list_blocked_head);
-    }
+    if (state == TASK_READY) {
+        stos_tcb_t **head = &(stos_ker.list_ready_head);
 
-    task->state = state;
+        task->state = state;
 
-    if (*head == NULL) {
-       *head = task; 
-       task->prev = NULL;
-       task->next = NULL;
-       return;
-    }
+        if (*head == NULL) {
+           *head = task; 
+           task->prev = NULL;
+           task->next = NULL;
+           return;
+        }
 
-    if (task->pri > (*head)->pri) {
-       task->next = *head;
-       task->prev = NULL;
-       (*head)->prev = task;
-       *head = task;
-       return;
-    }
+        if (task->pri > (*head)->pri) {
+           task->next = *head;
+           task->prev = NULL;
+           (*head)->prev = task;
+           *head = task;
+           return;
+        }
 
-    stos_tcb_t *runner = stos_ker.list_ready_head;
-    while (runner->next != NULL && TASK_CONDITION(task, runner, task->state)) {
-        runner = runner->next;
-    }
+        stos_tcb_t *runner = stos_ker.list_ready_head;
+        while (runner->next != NULL && task->pri <= runner->next->pri) {
+            runner = runner->next;
+        }
 
-    // At this point we're either at the end or at a priority lower than the current task
+        // At this point we're either at the end or at a priority lower than the current task
 
-    head = &runner;
-    if (runner->next == NULL && TASK_CONDITION(task, runner, task->state)) {
-        // Make the last task of this list the task we are adding
-        (*head)->next = task;
-        // Make the next task of the list be the end
-        task->next = NULL;
-        // Ensure last task points to previous one
+        head = &runner;
+
+        task->next = (*head)->next;
         task->prev = (*head);
+        (*head)->next->prev = task;
+        (*head)->next = task;
         return;
     }
-    task->next = (*head)->next;
-    task->prev = (*head);
-    (*head)->next->prev = task;
-    (*head)->next = task;
+
+    if (state == TASK_BLOCKED) {
+        stos_tcb_t **head = &(stos_ker.list_blocked_head);
+
+        task->state = state;
+
+        if (*head == NULL) {
+           *head = task; 
+           task->prev = NULL;
+           task->next = NULL;
+           return;
+        }
+
+        if (task->timeout < (*head)->timeout) {
+           task->next = *head;
+           task->prev = NULL;
+           (*head)->prev = task;
+           *head = task;
+           return;
+        }
+
+        stos_tcb_t *runner = stos_ker.list_blocked_head;
+        while (runner->next != NULL && task->timeout >= runner->next->timeout) {
+            runner = runner->next;
+        }
+
+        // At this point we're either at the end or at a priority lower than the current task
+
+        head = &runner;
+
+        task->next = (*head)->next;
+        task->prev = (*head);
+        (*head)->next->prev = task;
+        (*head)->next = task;
+        return;
+    }
 }
 
 void STOS_RemoveTask(stos_tcb_t * const task) {
@@ -118,6 +148,8 @@ void STOS_RemoveTask(stos_tcb_t * const task) {
         head = &(stos_ker.list_blocked_head);
     }
 
+    if (*head == NULL) return;
+
     stos_tcb_t *runner = *head;
     while (runner->next != NULL && (runner != task)) {
         runner = runner->next;
@@ -127,12 +159,15 @@ void STOS_RemoveTask(stos_tcb_t * const task) {
 
     // Removing from top
     if ((*head)->prev == NULL) {
+
         (*head)->next->prev = NULL;
+
         if (task->state == TASK_READY) {
             stos_ker.list_ready_head = (*head)->next;
         } else {
             stos_ker.list_blocked_head = (*head)->next;
         }
+
         (*head)->next = NULL;
         return;
     }
@@ -172,7 +207,7 @@ void STOS_Init(void (*handler)(void), uint32_t size) {
     // Add idle task
     STOS_CreateTask(&stos_ker.idle_task, handler, STOS_IDLE_DEFAULT_PRIORITY, size);
 
-    // Set stos_active to be the highest priority task and remove that highest
+    // Set active_task to be the highest priority task and remove that highest
     // priority task from the list since it's now the active one
     stos_ker.active_task = stos_ker.list_ready_head;
     STOS_RemoveTask(stos_ker.active_task);
@@ -183,6 +218,9 @@ void STOS_Init(void (*handler)(void), uint32_t size) {
 
 void STOS_Schedule() {
     stos_tcb_t *ready_task_head = stos_ker.list_ready_head;
+
+    if (ready_task_head == NULL) return; // should only happen if all other tasks are blocked
+    // and we are currently in the idle task
 
     // If the current task has been blocked, switch to the next highest priority
     if (stos_ker.active_task->state == TASK_BLOCKED) {

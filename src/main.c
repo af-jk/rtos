@@ -12,18 +12,17 @@
 
 static int i = 0;
 void main_tick1(void) {
-    while (1) {
-        i++;
-        if (i == 50) {
-        	STOS_TimeoutTask(20);
-            i = 0;
-        }
+    STOS_TimeoutTask(100);
+	while (1) {
         GPIO_SetHigh(GPIOA, GPIO_PIN_5);
     }
 }
 
 void main_tick2(void) {
-    while (1) GPIO_SetLow(GPIOA, GPIO_PIN_5);
+    STOS_TimeoutTask(10);
+	while (1) {
+        GPIO_SetLow(GPIOA, GPIO_PIN_5);
+    }
 }
 
 void main_tick3(void) {

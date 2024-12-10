@@ -12,9 +12,6 @@
 #define STOS_IDLE_DEFAULT_CONFIG NULL, 0
 #define STOS_IDLE_DEFAULT_PRIORITY 0
 
-#define TASK_CONDITION(task, head, condition) \
-    ((condition) ? (task->timeout > head->next->pri) : (task->pri <= head->next->pri))
-
 typedef struct stos_kernel {
     stos_tcb_t *list_ready_head;
     stos_tcb_t *list_blocked_head;
