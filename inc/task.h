@@ -21,6 +21,7 @@ typedef struct stos_tcb {
 
     uint32_t    pri;
     uint32_t    timeout;
+    uint32_t    sleep;
 
     struct stos_tcb *next;
     struct stos_tcb *prev;

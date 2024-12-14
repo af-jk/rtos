@@ -32,3 +32,4 @@ void STOS_TimeoutTask(uint32_t timeout);
 void STOS_Init(void (*handler)(void), uint32_t size);
 void STOS_Schedule(void);
 void STOS_Run(void);
+void STOS_Delay(uint32_t time);

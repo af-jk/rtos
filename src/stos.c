@@ -194,6 +194,13 @@ void STOS_TimeoutTask(uint32_t timeout) {
     STOS_Schedule();
 }
 
+void STOS_Sleep(uint32_t time) {
+    stos_ker.active_task->sleep = time;
+    while (stos_ker.active_task->sleep != 0) {
+        continue;
+    }
+}
+
 void STOS_Init(void (*handler)(void), uint32_t size) {
     uint8_t priority = 15U;
     priority = (priority & 0xFU) << PENDSV_PRIORITY_Pos;
@@ -274,6 +281,8 @@ void svc_handler(void) {
 }
 
 void sys_tick_handler(void) { 
+    if (stos_ker.active_task->sleep > 0) stos_ker.active_task->sleep--;
+
     stos_tcb_t *runner = stos_ker.list_blocked_head;
 
     while (runner != NULL) {

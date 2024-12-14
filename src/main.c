@@ -5,38 +5,33 @@
 #include "cm4_periphs.h"
 #include "gpio.h"
 #include "interrupts.h"
+#include "mutex.h"
 #include "stos.h"
 
 #pragma GCC diagnostic ignored "-Wunused-variable"
 
-
+stos_mutex_t mutex;
 static int i = 0;
+
 void main_tick1(void) {
-    STOS_TimeoutTask(100);
 	while (1) {
-        GPIO_SetHigh(GPIOA, GPIO_PIN_5);
+        if (STOS_MutexLock(&mutex) == 0) {
+            GPIO_SetHigh(GPIOA, GPIO_PIN_5);
+            STOS_Sleep(10);
+            STOS_MutexUnlock(&mutex);
+            STOS_Sleep(10);
+        }
     }
 }
 
 void main_tick2(void) {
-    STOS_TimeoutTask(10);
 	while (1) {
-        GPIO_SetLow(GPIOA, GPIO_PIN_5);
+        if (STOS_MutexLock(&mutex) == 0) {
+            GPIO_SetLow(GPIOA, GPIO_PIN_5);
+            STOS_MutexUnlock(&mutex);
+        }
     }
 }
-
-void main_tick3(void) {
-    while (1) GPIO_SetLow(GPIOA, GPIO_PIN_5);
-}
-
-void main_tick4(void) {
-    while (1) GPIO_SetLow(GPIOA, GPIO_PIN_5);
-}
-
-void main_tick5(void) {
-    while (1) GPIO_SetLow(GPIOA, GPIO_PIN_5);
-}
-
 
 int main(void) {
     RCC_Enable_GPIOA_Clk();
@@ -49,18 +44,6 @@ int main(void) {
 
     stos_tcb_t T2 = {0};
     STOS_CreateTask(&T2, &main_tick2, 3, 40);
-
-    /*
-
-    stos_tcb_t T3 = {0};
-    STOS_CreateTask(&T3, &main_tick3, 3, 40);
-
-    stos_tcb_t T4 = {0};
-    STOS_CreateTask(&T4, &main_tick4, 3, 40);
-
-    stos_tcb_t T5 = {0};
-    STOS_CreateTask(&T5, &main_tick5, 3, 40);
-    */
 
     STOS_Init(STOS_IDLE_DEFAULT_CONFIG);
     STOS_Run();
