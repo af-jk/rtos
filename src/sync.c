@@ -1,4 +1,4 @@
-#include "mutex.h"
+#include "sync.h"
 
 /*
  * Returns the value stored within lock
@@ -38,7 +38,7 @@ __attribute__((naked)) uint32_t __stos_write_to_lock(uint32_t val, uint32_t *add
     );
 }
 
-bool STOS_MutexLock(stos_mutex_t *mutex) {
+bool STOS_MutexTryLock(stos_mutex_t *mutex) {
     /*
      * LDREX performs a load (read mutex) and establishes a hardware monitor on the variable
      * STREX *must* be performed after a LDREX - if the hardware monitor hasn't seen any
@@ -65,6 +65,13 @@ bool STOS_MutexLock(stos_mutex_t *mutex) {
     return 1;
 }
 
+void STOS_MutexLock(stos_mutex_t *mutex) {
+    while (STOS_MutexTryLock(mutex) != 0) {
+        // eventually add a yield functionality
+        continue;
+    }
+}
+
 bool STOS_MutexUnlock(stos_mutex_t *mutex) {
     /*
      * STREX is dependent on the LDREX value not being modified.
@@ -74,4 +81,21 @@ bool STOS_MutexUnlock(stos_mutex_t *mutex) {
      */
     __stos_check_lock(mutex);
     return __stos_write_to_lock(0, &(mutex->lock));
+}
+
+void STOS_SemInit(stos_sem_t *sem, uint32_t val) {
+    sem->lock = val;
+}
+
+void STOS_SemWait(stos_sem_t *sem) {
+    uint32_t sem_val;
+    while ((sem_val = __stos_check_lock(sem)) == 0) {
+        continue;
+    }
+    __stos_write_to_lock(sem_val - 1, &(sem->lock));
+}
+
+void STOS_SemPost(stos_sem_t *sem) {
+    uint32_t sem_val = __stos_check_lock(sem);
+    __stos_write_to_lock(sem_val + 1, &(sem->lock));
 }
