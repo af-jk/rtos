@@ -21,31 +21,51 @@ stos_mutex_t mutex;
 stos_sem_t empty;
 stos_sem_t full;
 
+int prod_rate = 6;
+int cons_rate = 7;
+
+int prod_count = 0;
+int cons_count = 0;
+
 void producer(void) {
     int item = 0;
 	while (1) {
-        item++;
-        STOS_SemWait(&empty);
-        STOS_MutexLock(&mutex);
-        
-        buffer[in] = item;
-        in = (in + 1) % BUFFER_SIZE;
-        
-        STOS_MutexUnlock(&mutex);
-        STOS_SemPost(&full);
+        if (prod_count < prod_rate) {
+            item++;
+            STOS_SemWait(&empty);
+            STOS_MutexLock(&mutex);
+            
+            buffer[in] = item;
+            in = (in + 1) % BUFFER_SIZE;
+            
+            STOS_MutexUnlock(&mutex);
+            STOS_SemPost(&full);
+            cons_count = 0;
+            prod_count++;
+        } else {
+        	continue;
+        }
     }
 }
 
+int last_cons = 0;
 void consumer(void) {
 	while (1) {
-        STOS_SemWait(&full);
-        STOS_MutexLock(&mutex);
-        
-        int item = buffer[out];
-        out = (out + 1) % BUFFER_SIZE;
+        if (cons_count < cons_rate) {
+            STOS_SemWait(&full);
+            STOS_MutexLock(&mutex);
+            
+            int item = buffer[out];
+            last_cons = item;
+            out = (out + 1) % BUFFER_SIZE;
 
-        STOS_MutexUnlock(&mutex);
-        STOS_SemPost(&empty);
+            STOS_MutexUnlock(&mutex);
+            STOS_SemPost(&empty);
+            prod_count = 0;
+            cons_count++;
+        } else {
+        	continue;
+        }
     }
 }
 
