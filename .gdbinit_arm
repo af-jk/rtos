@@ -1,0 +1,20 @@
+set architecture arm
+
+file firmware.elf
+
+target extended-remote :3333
+
+monitor reset halt
+monitor arm semihosting enable
+monitor arm semihosting uart 0
+
+load
+
+break main
+
+continue
+
+set print asm-demangle on
+set disassemble-next-line on
+set print frame-arguments all
+focus cmd
