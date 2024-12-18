@@ -13,16 +13,16 @@
 #define BUFFER_SIZE 5
 
 
-int buffer[BUFFER_SIZE];
-int in = 0;
-int out = 0;
+uint32_t buffer[BUFFER_SIZE];
+uint32_t in = 0;
+uint32_t out = 0;
 
 stos_mutex_t mutex;
 stos_sem_t empty;
 stos_sem_t full;
 
 void producer(void) {
-    int item = 0;
+    uint32_t item = 0;
 	while (1) {
         item++;
         STOS_SemWait(&empty);
@@ -36,13 +36,13 @@ void producer(void) {
     }
 }
 
-int last_cons = 0;
+uint32_t last_cons = 0;
 void consumer(void) {
 	while (1) {
         STOS_SemWait(&full);
         STOS_MutexLock(&mutex);
         
-        int item = buffer[out];
+        uint32_t item = buffer[out];
         last_cons = item;
         out = (out + 1) % BUFFER_SIZE;
 
@@ -58,7 +58,7 @@ void consumer2(void) {
         STOS_SemWait(&full);
         STOS_MutexLock(&mutex);
 
-        int item = buffer[out];
+        uint32_t item = buffer[out];
         last_cons = item;
         out = (out + 1) % BUFFER_SIZE;
 
