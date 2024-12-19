@@ -32,47 +32,56 @@ void producer(void) {
     uint32_t item = 0;
 	while (1) {
         item++;
+        printf("PRODUCER:\tWaiting for an empty slot ...\r\n");
         STOS_SemWait(&empty);
+        printf("PRODUCER:\tAcquired an empty slot\r\n");
         STOS_MutexLock(&mutex);
+        printf("PRODUCER:\tProducing item %d at index %d\r\n", item, in);
         
         buffer[in] = item;
         in = (in + 1) % BUFFER_SIZE;
         
         STOS_MutexUnlock(&mutex);
+        printf("PRODUCER:\tProduced item\r\n");
         STOS_SemPost(&full);
     }
 }
 
-uint32_t last_cons = 0;
 void consumer(void) {
 	while (1) {
+        printf("CONSUMER 1:\tWaiting for an full slot ...\r\n");
         STOS_SemWait(&full);
+        printf("CONSUMER 1:\tAcquired for full slot\r\n");
         STOS_MutexLock(&mutex);
+        printf("CONSUMER 1:\tConsuming at index %d\r\n", out);
         
         uint32_t item = buffer[out];
-        last_cons = item;
         out = (out + 1) % BUFFER_SIZE;
 
         STOS_MutexUnlock(&mutex);
+        printf("CONSUMER 1:\tConsumed item %d\r\n", item);
         STOS_SemPost(&empty);
 
-        STOS_TimeoutTask(3);
+        // STOS_TimeoutTask(2);
     }
 }
 
 void consumer2(void) {
 	while (1) {
+        printf("CONSUMER 2:\tWaiting for an full slot ...\r\n");
         STOS_SemWait(&full);
+        printf("CONSUMER 2:\tAcquired for full slot\r\n");
         STOS_MutexLock(&mutex);
+        printf("CONSUMER 2:\tConsuming at index %d\r\n", out);
 
         uint32_t item = buffer[out];
-        last_cons = item;
         out = (out + 1) % BUFFER_SIZE;
 
         STOS_MutexUnlock(&mutex);
+        printf("CONSUMER 2:\tConsumed item %d\r\n", item);
         STOS_SemPost(&empty);
 
-        STOS_TimeoutTask(2);
+        // STOS_TimeoutTask(10);
     }
 }
 
@@ -80,6 +89,8 @@ int main(void) {
     RCC_Enable_GPIOA_Clk();
 
     USART_init(USART2,115200);
+    printf("DEBUG: RUNNING STOS RTOS\r\n");
+    printf("------------------------\r\n");
 
 
     GPIO_SetMode(GPIOA, GPIO_PIN_5, GPIO_OUTPUT);
