@@ -2,73 +2,78 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include "clock.h"
 #include "cm4_periphs.h"
 #include "gpio.h"
-#include "clock.h"
 #include "interrupts.h"
+#include "sync.h"
 #include "stos.h"
 #include "usart.h"
+
+
 void delay(volatile uint32_t delayTime) {
     while (delayTime--);
 }
 
-void usage_flt_handler(void) {
-    while (1);
-}
+#pragma GCC diagnostic ignored "-Wunused-variable"
 
-void bus_flt_handler(void) {
-    while (1);
-}
+#define BUFFER_SIZE 5
 
-void sys_tick_handler(void) {
-    STOS_Schedule();
-}
 
-void main_tick1(void) {
-    while (1) {
-        GPIO_SetHigh(GPIOA, GPIO_PIN_5);
+uint32_t buffer[BUFFER_SIZE];
+uint32_t in = 0;
+uint32_t out = 0;
 
-        printf("Task 1\r\n");
+stos_mutex_t mutex;
+stos_sem_t empty;
+stos_sem_t full;
+
+void producer(void) {
+    uint32_t item = 0;
+	while (1) {
+        item++;
+        STOS_SemWait(&empty);
+        STOS_MutexLock(&mutex);
+        
+        buffer[in] = item;
+        in = (in + 1) % BUFFER_SIZE;
+        
+        STOS_MutexUnlock(&mutex);
+        STOS_SemPost(&full);
     }
 }
 
-void main_tick2(void) {
-    while (1) {
-        GPIO_SetLow(GPIOA, GPIO_PIN_5);
+uint32_t last_cons = 0;
+void consumer(void) {
+	while (1) {
+        STOS_SemWait(&full);
+        STOS_MutexLock(&mutex);
+        
+        uint32_t item = buffer[out];
+        last_cons = item;
+        out = (out + 1) % BUFFER_SIZE;
 
-        printf("Task 2\r\n");
+        STOS_MutexUnlock(&mutex);
+        STOS_SemPost(&empty);
+
+        STOS_TimeoutTask(3);
     }
 }
 
-void main_tick3(void) {
-    while (1) {
-        GPIO_SetLow(GPIOA, GPIO_PIN_5);
+void consumer2(void) {
+	while (1) {
+        STOS_SemWait(&full);
+        STOS_MutexLock(&mutex);
 
-        printf("Task 3\r\n");
+        uint32_t item = buffer[out];
+        last_cons = item;
+        out = (out + 1) % BUFFER_SIZE;
+
+        STOS_MutexUnlock(&mutex);
+        STOS_SemPost(&empty);
+
+        STOS_TimeoutTask(2);
     }
-}
-
-void main_tick4(void) {
-    while (1) {
-        GPIO_SetLow(GPIOA, GPIO_PIN_5);
-
-        printf("Task 4\r\n");
-    }
-}
-
-void main_tick5(void) {
-    while (1) {
-        GPIO_SetLow(GPIOA, GPIO_PIN_5);
-
-        printf("Task 5\r\n");
-    }
-}
-
-void svc_handler(void) {
-    __asm volatile(
-        "MOV LR, #0xFFFFFFFD \n"
-        "BX LR \n"              
-    );
 }
 
 int main(void) {
@@ -77,48 +82,29 @@ int main(void) {
     USART_init(USART2,115200);
 
 
-
     GPIO_SetMode(GPIOA, GPIO_PIN_5, GPIO_OUTPUT);
+    Enable_Bus_Usage_Flts();
 
-    // Enable UsageFault and BusFault exceptions
-    SCB->SHCSR |= (1 << 17) | (1 << 18);
+    STOS_SemInit(&empty, BUFFER_SIZE);
+    STOS_SemInit(&full, 0);
 
     stos_tcb_t T1 = {0};
-    STOS_CreateTask(&T1,
-                    &main_tick1,
-                    5,
-                    80);
+    STOS_CreateTask(&T1, &producer, 3, 200);
 
     stos_tcb_t T2 = {0};
-    STOS_CreateTask(&T2,
-                    &main_tick2,
-                    5,
-                    80);
+    STOS_CreateTask(&T2, &consumer, 3, 200);
 
     stos_tcb_t T3 = {0};
-    STOS_CreateTask(&T3,
-                    &main_tick3,
-                    5,
-                    80);
-
-    stos_tcb_t T4 = {0}; STOS_CreateTask(&T4,
-                    &main_tick4,
-                    5,
-                    80);
-
-    stos_tcb_t T5 = {0};
-    STOS_CreateTask(&T5,
-                    &main_tick5,
-                    5,
-                    80);
+    STOS_CreateTask(&T3, &consumer2, 3, 200);
 
     STOS_Init(STOS_IDLE_DEFAULT_CONFIG);
     STOS_Run();
 
-    for (;;) {}
+    for (;;) {
+    }
 }
 
-int _write(int fd, char *ptr, size_t len) {
+int _write(int fd, char *ptr, uint32_t len) {
     (void) fd;
     if (fd == 1) {
         USART_transmit(USART2,(uint8_t *) ptr, len);
