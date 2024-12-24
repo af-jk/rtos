@@ -36,7 +36,7 @@ A custom linker script, `cm4.ld`, is used when building firmware for the device.
 
 Thus, to begin system initialization, the `_start` assembly routine is stored as the second vector within the `NVIC` and is the first routine that will run upon system initialization. That routine, located within the `startup_cm4.s` file, will copy the flash's `data` section into the SRAM section and then clear out the `bss` region within SRAM - both approaches are inspired by [CMSIS's](https://github.com/STMicroelectronics/cmsis-device-f4/blob/cdbad761857acedcdd07ece7939b4cb209ed826a/Source/Templates/gcc/startup_stm32f446xx.s) \[3\] method for doing so. The program then initializes the `MSP` (main stack pointer) and `PSP` (processes stack pointer) to their regions in memory and branches to main with the `MSP` active.
 
-With that set up, it's time to start building! The `Makefile` is quite generic - it takes in desired `CFLAGS` and `LDFLAGS`, then gets sources from the `src` directory and includes files from the `inc` directory. Simply running `make` will create a `.elf` file which can be flashed to the board using a debugger (GDB or the CubeIDE) while utilizing [OpenOCD](https://openocd.org/). Performing `make flash` will write the binary onto the chip without any form of debugging active.
+With that set up, it's time to start building! The `Makefile` is quite generic - it takes in desired `CFLAGS` and `LDFLAGS`, then gets sources from the `src` directory and includes files from the `inc` directory. Simply running `make` will create a `.elf` file which can be flashed to the board using a debugger (GDB or the CubeIDE) while utilizing [OpenOCD](https://openocd.org/) \[10\]. Performing `make flash` will write the binary onto the chip without any form of debugging active.
 
 ## 4 The STOS Kernel
 
@@ -295,7 +295,7 @@ void USART_transmit_byte(USART_t *port, uint8_t byte)
 Furthermore, the _write system call is modified to redirect printf() to our USART device, ultimately allowing us to print information from the mcu to our main computer device over serial. Currently, the USART device is configured at a 115200 baud rate, and serial information is read from TIO, a serial terminal I/O tool. Simple usage of the TIO tool is as follows:
 `$ tio /dev/ttyACM0 -b 115200`
 
-More information about tio can be found [here](https://github.com/tio/tio) \[7\].
+More information about tio can be found [here](https://github.com/tio/tio) \[9\].
 
 ## 8 References
 
@@ -314,3 +314,7 @@ More information about tio can be found [here](https://github.com/tio/tio) \[7\]
 \[7\] <https://developer.arm.com/documentation/dht0008/a/arm-synchronization-primitives/exclusive-accesses/ldrex-and-strex>
 
 \[8\] Joseph Yiu. 2009. The Definitive Guide to the ARM Cortex-M3, Second Edition (2nd. ed.). Newnes, USA.
+
+\[9\] <https://github.com/tio/tio>
+
+\[10\] <https://openocd.org/>
