@@ -22,7 +22,7 @@ This project involved the following key tasks:
 
 ![The Nucelo-F446RE Development board \[1\]](imgs/nucelo.jpg)
 
-This project features the Nucelo-F446RE as the development board of choice, seen above \[1\]. It comes equipped with a Cortex-M4 microcontroller that has 512KB of FLASH and 128KB of SRAM. To program the device, the development board comes includes an ST-LINK/V2-1 which utilizes either JTAG or SWD to load firmware onto the device, as seen in the split below\[2\].
+This project features the Nucelo-F446RE as the development board of choice, seen above \[1\]. It comes equipped with a Cortex-M4 microcontroller that has 512KB of FLASH and 128KB of SRAM. To program the device, the development board comes includes an ST-LINK/V2-1 which utilizes either JTAG or SWD to load firmware onto the device, as seen in the split below \[2\].
 
 ![Distinction between the embedded ST-LINK/V2-1 and the STM32 Microcontroller \[2\]](imgs/split.jpg)
 
@@ -32,15 +32,17 @@ Nucelo's development board also has a Mini-USB header which serves as the aforem
 
 As this is a baremetal utilization of the processor, no standard [CMSIS](https://www.arm.com/technologies/cmsis) libraries were used to configure the build enviornment and were instead written from scratch using them as a [resource](https://github.com/STMicroelectronics/cmsis-device-f4/tree/cdbad761857acedcdd07ece7939b4cb209ed826a) \[3\]. The majority of the similarities can be found in the peripheral `.h` files which lay out register maps based on addresses specific to the hardware.
 
-A custom linker script, `cm4.ld`, is used when building firmware for the device. It defines two regions in memory, SRAM and FLASH which have lengths of 128k and 512k respectively. Beyond the standard operations of a linker script, like defining the `data` and `bss` regions, this script allocates a region in memory for the **Nested Vector Interrupt Controller**, `NVIC` in short, which needs to be located at the start of the SRAM. When the processor begins initialization, the starting point of the main stack pointer is the first entry within the `NVIC`, in this case the start of SRAM. The second entry within the `NVIC` is the default routine to run during a system reset (or initialization) \[8\]. Thus, to begin system initialization, the `_start` assembly routine is stored as the second vector within the `NVIC` and is the first routine that will run upon system initialization. That routine, located within the `startup_cm4.s` file, will copy the data stored within the flash's data section into the SRAM section and then clears out the bss region within SRAM, both of which are inspired [CMSIS's method](https://github.com/STMicroelectronics/cmsis-device-f4/blob/cdbad761857acedcdd07ece7939b4cb209ed826a/Source/Templates/gcc/startup_stm32f446xx.s) \[3\]. The program then initializes the `MSP` (main stack pointer) and `PSP` (processes stack pointer) to their regions in memory and branches to main with the `MSP` active.
+A custom linker script, `cm4.ld`, is used when building firmware for the device. It defines two regions in memory, SRAM and FLASH which have lengths of 128k and 512k respectively. Beyond the standard operations of a linker script, like defining the `data` and `bss` regions, this script allocates a region in memory for the **Nested Vector Interrupt Controller**, `NVIC` in short, which needs to be located at the start of the SRAM. When the processor begins initialization, the starting point of the main stack pointer is the first entry within the `NVIC`, in this case the start of SRAM. The second entry within the `NVIC` is the default routine to run during a system reset (or initialization) \[8\].
 
-With that set up, it's now time to start building! The `Makefile` is quite generic, it takes in desired `CFLAGS` and `LDFLAGS`, then gets sources from the `src` directory and includes files from the `inc` directory. Simply running `make` will create a `.elf` file which can be flashed to the board using a debugger (GDB or the CubeIDE) while utilizing [OpenOCD](https://openocd.org/). Performing `make flash` will write the binary onto the chip without any form of debugging active.
+Thus, to begin system initialization, the `_start` assembly routine is stored as the second vector within the `NVIC` and is the first routine that will run upon system initialization. That routine, located within the `startup_cm4.s` file, will copy the flash's `data` section into the SRAM section and then clear out the `bss` region within SRAM - both approaches are inspired by [CMSIS's](https://github.com/STMicroelectronics/cmsis-device-f4/blob/cdbad761857acedcdd07ece7939b4cb209ed826a/Source/Templates/gcc/startup_stm32f446xx.s) \[3\] method for doing so. The program then initializes the `MSP` (main stack pointer) and `PSP` (processes stack pointer) to their regions in memory and branches to main with the `MSP` active.
 
-## 4 The Kernel and Tasks
+With that set up, it's time to start building! The `Makefile` is quite generic - it takes in desired `CFLAGS` and `LDFLAGS`, then gets sources from the `src` directory and includes files from the `inc` directory. Simply running `make` will create a `.elf` file which can be flashed to the board using a debugger (GDB or the CubeIDE) while utilizing [OpenOCD](https://openocd.org/). Performing `make flash` will write the binary onto the chip without any form of debugging active.
+
+## 4 The STOS Kernel
 
 ### 4.1 Kernel and Task Stacks
 
-The Cortex-M4 provides two different stack pointer registers, the Main Stack Pointer (`MSP`) and the Process Stack Pointer (`PSP`). On initalization the processor utilizes the `MSP` and switching between the `MSP`/`PSP` can only happen during a return from an exception, as shown in the figure below \[4\]. The current implementation does not feature floating-point support, thus exceptions will always return with either `0xFFFFFFF9 (MSP)` or `0xFFFFFFFD (PSP)`.
+The Cortex-M4 provides two different stack pointer registers, the Main Stack Pointer (`MSP`) and the Process Stack Pointer (`PSP`). On initalization the processor utilizes the `MSP` and switching between the `MSP`/`PSP` can only happen during a return from an exception, as shown in the figure below \[4\]. The current implementation does not feature floating-point support, thus exceptions will always return with either `0xFFFFFFF9 (MSP)` or `0xFFFFFFFD (PSP)`Tasks.
 
 ![Exception return behavior \[4\]](imgs/excp_ret.jpg)
 
@@ -56,7 +58,7 @@ void svc_handler(void) {
 }
 ```
 
-Determing which region of the stack is being used is quite simple. The Cortex-M4 exception frame states that all exceptions will required elevated priority and will use the `MSP`. Thus any exception (like `SYSTICK` - discussed later) and subsequent kernel level function will take place within the `MSP`, while an exception that intends to return to a task (like `PENDSV` - discussed later) will modify the link register and return into the context of the `PSP` \[4\].
+Determing which region of the stack is being used is quite simple. The Cortex-M4 exception frame states that all exceptions will required elevated priority and will use the `MSP`. Thus any exception (like `SYSTICK` - discussed later) and subsequent kernel level functions will take place within the `MSP`, while an exception that intends to return to a task (like `PENDSV` - discussed later) will modify the link register and return into the context of the `PSP` \[4\].
 
 ### 4.2 Kernel Structure
 
@@ -100,7 +102,7 @@ The `list_ready_head` tcb points to the head of the ready list of tasks, which s
 
 Internally, the kernel calls on the `STOS_AddTask` and `STOS_RemoveTask` functions take in these task control blocks and the respecitve task lists to append/remove them from and maintain that ordering.
 
-The last three tasks that the kernel stores are the `next_task` is the highest priority ready task that will be scheduled next (same as `list_ready_head`) and the `active_task` which points to the task that is currently running (it shouldn't be on either the ready or blocked list), and lastly the idle task, which should be the last resort task. There is certainly room for some more optimization by removing some bloat from what the kernel is keeping track of.
+The last three tasks that the kernel stores are the `next_task`, which is the highest priority ready task that will be scheduled next (same as `list_ready_head`) and the `active_task` which points to the task that is currently running (it shouldn't be on either the ready or blocked list), and lastly the idle task, which should be the last lowest priority task within the system. There is certainly room for some more optimization by removing some bloat from what the kernel is keeping track of.
 
 ### 4.3 Task Creation
 
@@ -127,6 +129,57 @@ Once all of the desired tasks have been added, calling `STOS_Init` with the defa
 The core of a Real-Time Operating System consists of having a scheduler that runs at a set rate and decides which task to schedule at each instant.
 
 Fundamental to the functionality of a Real-Time Operating System is having a scheduler that re-evaluates which task should be currently running at a set rate. Thankfully, the Cortex-M4 provides a timer that can be used to perform this task, the `SYSTICK` timer. As previously mentioned, the `STOS_Init` function sets up the `SYSTICK` peripheral to call an interrupt every millisecond (which is configurably based on the processors clock speed). With each systick interrupt, the scheduler is called.
+
+The initialization for the `SYSTICK` to occur millisecond is seen below:
+
+```c
+// From interrupts.c
+
+void SYSTICK_Config(void) {
+    /*  SYSTICK CTRL: 31 - 0
+        [0] -> Enable (counter loads reload to load and counts down)
+        [1] -> Tick Int (counting down to zero asserts exception request)
+        [2] -> Clk Source (AHB/8 or Processor clock (AHB) as clock source)
+    */
+    SYSTICK->CTRL &= ~(1UL << 0);  // Don't enable
+    SYSTICK->CTRL |= 1UL << 1;     // Enable exception
+    SYSTICK->CTRL |= 1UL << 2;     // Select processor clock
+
+    /*  SYSTICK LOAD: 23 - 0
+        [23:0] -> RELOAD Value
+        If we want 1ms ticks, set to the mxaimum timer count value 15.9e3
+    */
+    SYSTICK->LOAD |= (CORE_FREQ / 10) - 1;  // Set the LOAD value
+
+    SYSTICK->VAL &= ~(0xFFFFFFUL);  // Clear VAL value= 0;
+
+    SYSTICK->CTRL |= 1UL;  // Enable SYSTICK
+}
+```
+
+With each `SYSTICK`, a handler function gets called the decrements the sleep and timeout of tasks that are blocked, and then calls the scheduler.
+
+```c
+// From stos.c
+
+void sys_tick_handler(void) { 
+    if (stos_ker.active_task->sleep > 0) stos_ker.active_task->sleep--;
+
+    stos_tcb_t *runner = stos_ker.list_blocked_head;
+
+    while (runner != NULL) {
+        stos_tcb_t **head = &runner;
+        (*head)->timeout--;
+        if ((*head)->timeout == 0) {
+            STOS_RemoveTask((*head));
+            STOS_AddTask((*head), TASK_READY);
+        }
+        runner = runner->next;
+    }
+
+    STOS_Schedule(); 
+}
+```
 
 ### 5.2 Beginning the RTOS
 
