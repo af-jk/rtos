@@ -299,7 +299,7 @@ More information about tio can be found [here](https://github.com/tio/tio) \[9\]
 
 ## 9 Conclusion
 
-At the start of the semester, we laid out a plane of deliverables to meet throughtout the semester. The table below indicates how far we've made it in each category. An `C` indicates the task was completed fully, an `M` that it was completed in a modified way, and if `X` it was not attempted. Unfortunately, we haven't been able to meet all our goals, but our RTOS still provides a majority of the desired functionality.
+At the start of the semester, we laid out a plane of deliverables to meet throughtout the semester. The table below indicates how much we achieved in each category. A `C` indicates the task was completed fully, an `M` that it was completed in a modified way, and if `X` it was not attempted. Unfortunately, we haven't been able to meet all our goals, but our RTOS still provides a majority of the desired functionality.
 
 | **Category**                  | **Task**                                                                      | **Status** |
 |-------------------------------|-------------------------------------------------------------------------------|------------|
