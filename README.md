@@ -297,7 +297,53 @@ Furthermore, the _write system call is modified to redirect printf() to our USAR
 
 More information about tio can be found [here](https://github.com/tio/tio) \[9\].
 
-## 8 References
+## 9 Conclusion
+
+At the start of the semester, we laid out a plane of deliverables to meet throughtout the semester. The table below indicates how far we've made it in each category. An `X` indicates the task was completed fully, a `~` that it was completed in a modified way, and if `-` it was not attempted. Unfortunately, we haven't been able to meet all our goals, but our RTOS still provides a majority of the desired functionality.
+
+| **Category**                  | **Task**                                                                      | **Status** |
+|-------------------------------|-------------------------------------------------------------------------------|------------|
+| **Environment Configuration**  | Create the build environment for the Cortex-M4.                              | **\[X\]**          |
+|                                | Set up OpenOCD and SWD over a GDB connection through the ST-LINK.            | **\[X\]**          |
+|                                | Bare-metal initialization of the processor.                                  | **\[X\]**          |
+| **Interrupt Configuration**    | Create separate stacks for kernel and task mode.                             | **\[X\]**          |
+|                                | Set up the SysTick timer for the scheduler.                                  | **\[X\]**          |
+|                                | Create processor context backup/restore routines that support FPU functionality. | **\[~\]**        |
+|                                | Create two tasks to be cyclically scheduled with each RTOS tick.             | **\[X\]**          |
+|                                | Add a syscall interface using the SVC.                                       | **\[X\]**          |
+|                                | Demonstrate functional context switch between two tasks.                     | **\[X\]**          |
+| **Fixed-Priority Scheduler**   | Define a task descriptor.                                                    | **\[X\]**          |
+|                                | Keep track of task states (Ready, Running, Blocked, Suspended, etc.) and priorities. | **\[X\]**        |
+|                                | Add an interface for creating tasks and initializing the scheduler.          | **\[X\]**          |
+|                                | Create an idle task.                                                         | **\[X\]**          |
+|                                | Add a dynamic tick timer.                                                    | **\[-\]**          |
+|                                | Showcase scheduler functionality by utilizing kernel timer interface and different task priorities to toggle GPIOs. | **\[X\]**        |
+| **Synchronization Primitives** | Implement more basic primitives like mutexes and semaphores.                 | **\[X\]**         |
+|                                | Add queues and event flags for inter-task communication.                     | **\[-\]**         |
+|                                | Verify prioritized preemptive scheduler.                                     | **\[X\]**         |
+|                                | Create pthread bindings.                                                     | **\[-\]**         |
+|                                | Develop unit tests to prove functionality.                                   | **\[~\]**         |
+|                                | Present functionality of synchronization primitives by showing successful unit test. | **\[~\]**        |
+| **Bonus**                      | Utilizing the MPU to catch memory corruption bugs.                           | **\[-\]**          |
+|                                | Add conditional variables, rwlocks, and barriers.                            | **\[-\]**          |
+|                                | Further implementation of bare-metal HAL drivers (timers, UART, etc.)        | **\[X\]**          |
+|                                | Measuring RTOS performance metrics.                                          | **\[-\]**          |
+
+The first target that requires clarification is floating-point support for the RTOS. A context-switching mechanism was developed for non-floating-point tasks. However, if the program utilizes floating-point operations, the necessary registers are not saved. This limitation arises due to the increased complexity of managing floating-point context switching, which was deemed unnecessary for the preliminary applications of this RTOS.
+
+Additionally, a unit testing framework from the ground up was not developed to verify the functionality of the synchronization primitives. Instead, these were verified within the debugger to ensure that the protected locks were not modified and their effectiveness demonstrated by a producer-consumer problem implemented on the core.
+
+To demonstrate the functionality of the RTOS, `main.c` contains a standard producer-consumer problem. This example initializes one task as a producer, two tasks as consumers, and a shared circular buffer. A mutex is used to ensure atomic writes to the buffer, and two semaphores are employed to protect the buffer from being read when empty or written to when full. The bonus UART feature is useful here, as connecting the development board over UART demonstrates the functionality of the primitives.
+
+The basic flow of the producer-consumer example is as follows: the buffer size is currently set to five. The producer continually produces items to place into the buffer until it gets scheduled out. It will place items in the buffer until no empty slots are available. At this point, the task continues executing but can no longer write to the buffer, as it is full and no comsuer tasks are active (since this is a single-core system).
+
+Once the producer gets cycled out (the scheduler operates at 1 ms, which is relatively slow), the first consumer will read the values from the buffer until there are no full slots remaining. Like the producer, this consumer will remain stuck waiting for more items to be added to the buffer (which won't happen because no producer is active) until it is scheduled again. The second consumer will be scheduled after the first and will attempt to read from the same buffer but will likewise be blocked because no full slots are available. It will similarly remain stuck until it is scheduled.
+
+This cycle will repeat continually, with the producer filling the buffer, the first consumer emptying it, and the second consumer sitting idle. This example is intended solely to demonstrate the RTOS's ability to schedule multiple tasks and manage synchronization primitives. By using a sleep/timeout function (which yields the tasks), the rate of production/consumption can be altered, as indicated by the commented-out `STOS_TimeoutTask` functions. In these scenarios, the semaphores and mutexes still function as expected.
+
+Future improvements that were promised, but unfortunately couldn't be delivered due to the time constraint would involve adding floating point support, implementing a dynamic tick timer for more optimized scheduling, and arguably most importantly, the implementation of queues and event based flags for inter-task communications. Additionally, utilizing the MPU to catch memory corruption bugs would provide for a more robust system that prevents users from introducing critical bugs that my go unnoticed due to not allocating the proper stack size for each task.
+
+## 10 References
 
 \[1\] <https://www.st.com/en/evaluation-tools/nucleo-f446re.html>
 
