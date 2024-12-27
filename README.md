@@ -299,35 +299,35 @@ More information about tio can be found [here](https://github.com/tio/tio) \[9\]
 
 ## 9 Conclusion
 
-At the start of the semester, we laid out a plane of deliverables to meet throughtout the semester. The table below indicates how far we've made it in each category. An `X` indicates the task was completed fully, a `~` that it was completed in a modified way, and if `-` it was not attempted. Unfortunately, we haven't been able to meet all our goals, but our RTOS still provides a majority of the desired functionality.
+At the start of the semester, we laid out a plane of deliverables to meet throughtout the semester. The table below indicates how far we've made it in each category. An `C` indicates the task was completed fully, an `M` that it was completed in a modified way, and if `X` it was not attempted. Unfortunately, we haven't been able to meet all our goals, but our RTOS still provides a majority of the desired functionality.
 
 | **Category**                  | **Task**                                                                      | **Status** |
 |-------------------------------|-------------------------------------------------------------------------------|------------|
-| **Environment Configuration**  | Create the build environment for the Cortex-M4.                              | **\[X\]**          |
-|                                | Set up OpenOCD and SWD over a GDB connection through the ST-LINK.            | **\[X\]**          |
-|                                | Bare-metal initialization of the processor.                                  | **\[X\]**          |
-| **Interrupt Configuration**    | Create separate stacks for kernel and task mode.                             | **\[X\]**          |
-|                                | Set up the SysTick timer for the scheduler.                                  | **\[X\]**          |
-|                                | Create processor context backup/restore routines that support FPU functionality. | **\[~\]**        |
-|                                | Create two tasks to be cyclically scheduled with each RTOS tick.             | **\[X\]**          |
-|                                | Add a syscall interface using the SVC.                                       | **\[X\]**          |
-|                                | Demonstrate functional context switch between two tasks.                     | **\[X\]**          |
-| **Fixed-Priority Scheduler**   | Define a task descriptor.                                                    | **\[X\]**          |
-|                                | Keep track of task states (Ready, Running, Blocked, Suspended, etc.) and priorities. | **\[X\]**        |
-|                                | Add an interface for creating tasks and initializing the scheduler.          | **\[X\]**          |
-|                                | Create an idle task.                                                         | **\[X\]**          |
-|                                | Add a dynamic tick timer.                                                    | **\[-\]**          |
-|                                | Showcase scheduler functionality by utilizing kernel timer interface and different task priorities to toggle GPIOs. | **\[X\]**        |
-| **Synchronization Primitives** | Implement more basic primitives like mutexes and semaphores.                 | **\[X\]**         |
-|                                | Add queues and event flags for inter-task communication.                     | **\[-\]**         |
-|                                | Verify prioritized preemptive scheduler.                                     | **\[X\]**         |
-|                                | Create pthread bindings.                                                     | **\[-\]**         |
-|                                | Develop unit tests to prove functionality.                                   | **\[~\]**         |
-|                                | Present functionality of synchronization primitives by showing successful unit test. | **\[~\]**        |
-| **Bonus**                      | Utilizing the MPU to catch memory corruption bugs.                           | **\[-\]**          |
-|                                | Add conditional variables, rwlocks, and barriers.                            | **\[-\]**          |
-|                                | Further implementation of bare-metal HAL drivers (timers, UART, etc.)        | **\[X\]**          |
-|                                | Measuring RTOS performance metrics.                                          | **\[-\]**          |
+| **Environment Configuration**  | Create the build environment for the Cortex-M4.                              | **\[C\]**          |
+|                                | Set up OpenOCD and SWD over a GDB connection through the ST-LINK.            | **\[C\]**          |
+|                                | Bare-metal initialization of the processor.                                  | **\[C\]**          |
+| **Interrupt Configuration**    | Create separate stacks for kernel and task mode.                             | **\[C\]**          |
+|                                | Set up the SysTick timer for the scheduler.                                  | **\[C\]**          |
+|                                | Create processor context backup/restore routines that support FPU functionality. | **\[M\]**        |
+|                                | Create two tasks to be cyclically scheduled with each RTOS tick.             | **\[C\]**          |
+|                                | Add a syscall interface using the SVC.                                       | **\[C\]**          |
+|                                | Demonstrate functional context switch between two tasks.                     | **\[C\]**          |
+| **Fixed-Priority Scheduler**   | Define a task descriptor.                                                    | **\[C\]**          |
+|                                | Keep track of task states (Ready, Running, Blocked, Suspended, etc.) and priorities. | **\[C\]**        |
+|                                | Add an interface for creating tasks and initializing the scheduler.          | **\[C\]**          |
+|                                | Create an idle task.                                                         | **\[C\]**          |
+|                                | Add a dynamic tick timer.                                                    | **\[X\]**          |
+|                                | Showcase scheduler functionality by utilizing kernel timer interface and different task priorities to toggle GPIOs. | **\[C\]**        |
+| **Synchronization Primitives** | Implement more basic primitives like mutexes and semaphores.                 | **\[C\]**         |
+|                                | Add queues and event flags for inter-task communication.                     | **\[M\]**         |
+|                                | Verify prioritized preemptive scheduler.                                     | **\[C\]**         |
+|                                | Create pthread bindings.                                                     | **\[X\]**         |
+|                                | Develop unit tests to prove functionality.                                   | **\[M\]**         |
+|                                | Present functionality of synchronization primitives by showing successful unit test. | **\[M\]**        |
+| **Bonus**                      | Utilizing the MPU to catch memory corruption bugs.                           | **\[X\]**          |
+|                                | Add conditional variables, rwlocks, and barriers.                            | **\[X\]**          |
+|                                | Further implementation of bare-metal HAL drivers (timers, UART, etc.)        | **\[C\]**          |
+|                                | Measuring RTOS performance metrics.                                          | **\[X\]**          |
 
 The first target that requires clarification is floating-point support for the RTOS. A context-switching mechanism was developed for non-floating-point tasks. However, if the program utilizes floating-point operations, the necessary registers are not saved. This limitation arises due to the increased complexity of managing floating-point context switching, which was deemed unnecessary for the preliminary applications of this RTOS.
 
