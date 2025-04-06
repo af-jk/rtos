@@ -3,8 +3,6 @@
 .fpu    softvfp
 .thumb
 
-.global vectors
-
 .word __si_data
 .word __s_data
 .word __e_data
@@ -45,32 +43,25 @@ CompareBssAddress:
     cmp     r1, r2
     bcc     ZeroBssLoop
 
-    // Set MSP
-    ldr     r0, =_mstack
-    msr     msp, r0
-
     // Set PSP
     ldr     r1, =_pstack
     msr     psp, r1
-
-    // Would set us into PSP mode, would rather stay in MSP mode for now
-    // mov     r0, #0x3
-    // msr     control, r0
-    // isb
 
     bl      main
     bx      lr
 .size _start, .-_start
 
-    .section .text.default_handler, "ax", %progbits
+    .section .text.default_handler,"ax",%progbits
+    .global default_handler
 default_handler:
 Infinite_Loop:
     b Infinite_Loop
 .size default_handler, .-default_handler
 
-    .section .rodata.vectors
-vectors:
-    // Arm Exceptions
+    .section .vectors,"a",%progbits
+    .global nvic_vectors
+nvic_vectors:
+    // 16 Default Processor Exceptions
     .word _mstack
     .word _start
     .word nmi_handler
@@ -88,7 +79,7 @@ vectors:
     .word pend_sv_handler
     .word sys_tick_handler
 
-    // STM IRQs : setting to 0 for now
+    // 96 + 1 Peripheral Exceptions
     .word 0 /* Window WatchDog                              */                                        
     .word 0 /* PVD through EXTI Line detection              */                        
     .word 0 /* Tamper and TimeStamps through the EXTI line  */            
@@ -186,7 +177,7 @@ vectors:
     .word 0 /* SPDIF RX                                     */
     .word 0 /* FMPI2C 1 Event                               */
     .word 0 /* FMPI2C 1 Error                               */
-.size  vectors, .-vectors
+.size  nvic_vectors, .-nvic_vectors
 
     .weak       nmi_handler
     .thumb_set  nmi_handler, default_handler
