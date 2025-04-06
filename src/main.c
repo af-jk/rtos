@@ -10,15 +10,9 @@
 #include "stos.h"
 #include "usart.h"
 
-
-void delay(volatile uint32_t delayTime) {
-    while (delayTime--);
-}
-
 #pragma GCC diagnostic ignored "-Wunused-variable"
 
 #define BUFFER_SIZE 5
-
 
 uint32_t buffer[BUFFER_SIZE];
 uint32_t in = 0;
@@ -36,7 +30,7 @@ void producer(void) {
         STOS_SemWait(&empty);
         printf("PRODUCER:\tAcquired an empty slot\r\n");
         STOS_MutexLock(&mutex);
-        printf("PRODUCER:\tProducing item %d at index %d\r\n", item, in);
+        printf("PRODUCER:\tProducing item %ld at index %ld\r\n", item, in);
         
         buffer[in] = item;
         in = (in + 1) % BUFFER_SIZE;
@@ -53,13 +47,13 @@ void consumer(void) {
         STOS_SemWait(&full);
         printf("CONSUMER 1:\tAcquired for full slot\r\n");
         STOS_MutexLock(&mutex);
-        printf("CONSUMER 1:\tConsuming at index %d\r\n", out);
+        printf("CONSUMER 1:\tConsuming at index %ld\r\n", out);
         
         uint32_t item = buffer[out];
         out = (out + 1) % BUFFER_SIZE;
 
         STOS_MutexUnlock(&mutex);
-        printf("CONSUMER 1:\tConsumed item %d\r\n", item);
+        printf("CONSUMER 1:\tConsumed item %ld\r\n", item);
         STOS_SemPost(&empty);
 
         // STOS_TimeoutTask(2);
@@ -72,13 +66,13 @@ void consumer2(void) {
         STOS_SemWait(&full);
         printf("CONSUMER 2:\tAcquired for full slot\r\n");
         STOS_MutexLock(&mutex);
-        printf("CONSUMER 2:\tConsuming at index %d\r\n", out);
+        printf("CONSUMER 2:\tConsuming at index %ld\r\n", out);
 
         uint32_t item = buffer[out];
         out = (out + 1) % BUFFER_SIZE;
 
         STOS_MutexUnlock(&mutex);
-        printf("CONSUMER 2:\tConsumed item %d\r\n", item);
+        printf("CONSUMER 2:\tConsumed item %ld\r\n", item);
         STOS_SemPost(&empty);
 
         // STOS_TimeoutTask(10);
