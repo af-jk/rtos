@@ -12,71 +12,16 @@
 
 #pragma GCC diagnostic ignored "-Wunused-variable"
 
-#define BUFFER_SIZE 5
-
-uint32_t buffer[BUFFER_SIZE];
-uint32_t in = 0;
-uint32_t out = 0;
-
-stos_mutex_t mutex;
-stos_sem_t empty;
-stos_sem_t full;
-
-void producer(void) {
-    uint32_t item = 0;
-	while (1) {
-        item++;
-        printf("PRODUCER:\tWaiting for an empty slot ...\r\n");
-        STOS_SemWait(&empty);
-        printf("PRODUCER:\tAcquired an empty slot\r\n");
-        STOS_MutexLock(&mutex);
-        printf("PRODUCER:\tProducing item %ld at index %ld\r\n", item, in);
-        
-        buffer[in] = item;
-        in = (in + 1) % BUFFER_SIZE;
-        
-        STOS_MutexUnlock(&mutex);
-        printf("PRODUCER:\tProduced item\r\n");
-        STOS_SemPost(&full);
-    }
+void stos_task_1(void) {
+	while (true) {
+		continue;
+	}
 }
 
-void consumer(void) {
-	while (1) {
-        printf("CONSUMER 1:\tWaiting for an full slot ...\r\n");
-        STOS_SemWait(&full);
-        printf("CONSUMER 1:\tAcquired for full slot\r\n");
-        STOS_MutexLock(&mutex);
-        printf("CONSUMER 1:\tConsuming at index %ld\r\n", out);
-        
-        uint32_t item = buffer[out];
-        out = (out + 1) % BUFFER_SIZE;
-
-        STOS_MutexUnlock(&mutex);
-        printf("CONSUMER 1:\tConsumed item %ld\r\n", item);
-        STOS_SemPost(&empty);
-
-        // STOS_TimeoutTask(2);
-    }
-}
-
-void consumer2(void) {
-	while (1) {
-        printf("CONSUMER 2:\tWaiting for an full slot ...\r\n");
-        STOS_SemWait(&full);
-        printf("CONSUMER 2:\tAcquired for full slot\r\n");
-        STOS_MutexLock(&mutex);
-        printf("CONSUMER 2:\tConsuming at index %ld\r\n", out);
-
-        uint32_t item = buffer[out];
-        out = (out + 1) % BUFFER_SIZE;
-
-        STOS_MutexUnlock(&mutex);
-        printf("CONSUMER 2:\tConsumed item %ld\r\n", item);
-        STOS_SemPost(&empty);
-
-        // STOS_TimeoutTask(10);
-    }
+void stos_task_2(void) {
+	while (true) {
+		continue;
+	}
 }
 
 int main(void) {
@@ -90,17 +35,11 @@ int main(void) {
     GPIO_SetMode(GPIOA, GPIO_PIN_5, GPIO_OUTPUT);
     Enable_Bus_Usage_Flts();
 
-    STOS_SemInit(&empty, BUFFER_SIZE);
-    STOS_SemInit(&full, 0);
-
     stos_tcb_t T1 = {0};
-    STOS_CreateTask(&T1, &producer, 3, 200);
+    STOS_CreateTask(&T1, &stos_task_1, 3, 9);
 
     stos_tcb_t T2 = {0};
-    STOS_CreateTask(&T2, &consumer, 3, 200);
-
-    stos_tcb_t T3 = {0};
-    STOS_CreateTask(&T3, &consumer2, 3, 200);
+    STOS_CreateTask(&T2, &stos_task_2, 3, 9);
 
     STOS_Init(STOS_IDLE_DEFAULT_CONFIG);
     STOS_Run();
@@ -114,5 +53,5 @@ int _write(int fd, char *ptr, uint32_t len) {
     if (fd == 1) {
         USART_transmit(USART2,(uint8_t *) ptr, len);
     }
-    return len;
+    return (int)len;
  }

@@ -12,6 +12,11 @@
 #define STOS_IDLE_DEFAULT_CONFIG NULL, 0
 #define STOS_IDLE_DEFAULT_PRIORITY 0
 
+#define STACK_CRPT_DETECT_REG_SIZE (4U)
+#define STACK_CRPT_DETECT_SEQ      (0xFAFAFAFA)
+#define PENDSV_PRIORITY_Pos        (0x4U)  // PendSV priority is in the upper 4 bits of SHP[7]
+#define PENDSV_PRIORITY_Mask       (0xFU << PENDSV_PRIORITY_Pos)  // Mask for the priority bits (upper 4 bits)
+
 typedef struct stos_kernel {
     stos_tcb_t *list_ready_head;
     stos_tcb_t *list_blocked_head;
@@ -32,4 +37,3 @@ void STOS_TimeoutTask(uint32_t timeout);
 void STOS_Init(void (*handler)(void), uint32_t size);
 void STOS_Schedule(void);
 void STOS_Run(void);
-void STOS_Sleep(uint32_t time);

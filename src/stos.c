@@ -1,11 +1,6 @@
 #include "stos.h"
 #include "interrupts.h"
 
-#define PENDSV_PRIORITY_Pos \
-    0x4U  // PendSV priority is in the upper 4 bits of SHP[7]
-#define PENDSV_PRIORITY_Mask \
-    (0xF << PENDSV_PRIORITY_Pos)  // Mask for the priority bits (upper 4 bits)
-
 static stos_kernel_t stos_ker;
 
 void stos_idle_task(void) {
@@ -17,6 +12,27 @@ void STOS_CreateTask(stos_tcb_t * const task, void (*handler)(void), uint32_t pr
 
     if (task == NULL || handler == NULL) return;
 
+    /* 
+    Need to ensure 8-byte alignment on stack - per ARM ATPCS.
+
+    Ex: stack (this example grows opp. of Cortex stack - it would go from high to low)
+    0x0000 0000 // first doubleword
+    0x0000 0004 // first doubleword
+    0x0000 0008 // second double word
+    0x0000 000c // second double word
+    0x0000 0010 // third double word
+    0x0000 0014 // third double word
+    0x0000 0018 // and so on
+    ...
+
+    Practically speaking, the last three bits (8) need to be masked 0x.... .000
+
+    However, the push and pop instruction operates on word alignment. Thus, the registers 
+    need to be separated by four bytes, but the initial access and stack pointer saved at the end
+    need to be double word aligned.
+    */
+
+    // Can assume this is always going to be valid
     uint32_t *psp;
     __asm volatile(" MRS   %[psp_var], psp    \n" : [psp_var] "=r"(psp) : :);
     uint32_t *init_sp = (uint32_t *)((uint32_t)psp);
@@ -41,21 +57,40 @@ void STOS_CreateTask(stos_tcb_t * const task, void (*handler)(void), uint32_t pr
     *(--init_sp) = 0x00000005U;         // R5
     *(--init_sp) = 0x00000004U;         // R4
 
-    // update sp -- this is the new top of the stack
+    /* Now we update the local sp copy, which this is the new top of the stack. This is 
+    aligned because we pushed 16 elements (if it was odd, we'd need to further ensure alignment) */
+
     task->sp    = init_sp;
     task->func  = handler;
     task->pri   = pri;
 
     // Fill in what remains of size - 16 (size of stack frame) w/ pre-set val
-    uint32_t *region_end = init_sp - size + 4;
+    uint32_t *region_end = init_sp - size;
     while (init_sp > region_end) {
         *(--init_sp) = 0xDEADBEEF;
     }
 
-    // maybe overkill, but ensure alignment
+    // Ensure eight byte alignment
     while (((uint32_t)init_sp & BYTE_ALIGN) != 0) {
-        *(--init_sp) = 0xFEEBDEADU;
+        *(--init_sp) = 0xFEEBDAEDU;
+        region_end--;
     }
+
+    /* Now, let's add a corruption region to the end of the stack frame. Purpose is to
+    have this always be a fixed value that exists outside the functions allocated
+    stack and to check it's content during a context switch to ensure it hasn't 
+    been modified.
+    
+    As a note the STACK_CORRUPT_REGION_SIZE should always be a multiple of two to ensure
+    and eight-byte stack alignment
+
+    */
+    for (uint32_t i = 0; i < STACK_CRPT_DETECT_REG_SIZE*2; i++) {
+        *(--init_sp) = STACK_CRPT_DETECT_SEQ;
+    }
+
+    // Save the first address of the corruption region
+    task->stack_end = region_end;
 
     // update PSP to work for next allocation
     __asm volatile("MSR psp, %0" : : "r"(init_sp));
@@ -194,13 +229,6 @@ void STOS_TimeoutTask(uint32_t timeout) {
     STOS_Schedule();
 }
 
-void STOS_Sleep(uint32_t time) {
-    stos_ker.active_task->sleep = time;
-    while (stos_ker.active_task->sleep != 0) {
-        continue;
-    }
-}
-
 void STOS_Init(void (*handler)(void), uint32_t size) {
     uint8_t priority = 15U;
     priority = (priority & 0xFU) << PENDSV_PRIORITY_Pos;
@@ -223,11 +251,38 @@ void STOS_Init(void (*handler)(void), uint32_t size) {
     SYSTICK_Config();
 }
 
+/* Results: 
+0 -> no corruption
+1 -> corruption
+*/
+static uint32_t STOS_CheckTaskCorruption(stos_tcb_t *task) {
+    uint32_t *end_sp = task->stack_end;
+
+    for (uint32_t i = 0; i < STACK_CRPT_DETECT_REG_SIZE*2; i++) {
+        if (*(--end_sp) != STACK_CRPT_DETECT_SEQ) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 void STOS_Schedule() {
     stos_tcb_t *ready_task_head = stos_ker.list_ready_head;
 
     if (ready_task_head == NULL) return; // should only happen if all other tasks are blocked
     // and we are currently in the idle task
+
+    /* Check for stack corruption in the active task, if there is corruption do not schedule
+    and instead proceed to default fault */
+    if (STOS_CheckTaskCorruption(stos_ker.active_task)) {
+        // Manually trigger a usage fault
+        volatile uint32_t fault = 1;
+        fault = 1/0;
+
+        // Should never get here
+        for (;;);
+    }
 
     // If the current task has been blocked, switch to the next highest priority
     if (stos_ker.active_task->state == TASK_BLOCKED) {
@@ -281,8 +336,6 @@ void svc_handler(void) {
 }
 
 void sys_tick_handler(void) { 
-    if (stos_ker.active_task->sleep > 0) stos_ker.active_task->sleep--;
-
     stos_tcb_t *runner = stos_ker.list_blocked_head;
 
     while (runner != NULL) {

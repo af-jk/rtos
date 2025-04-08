@@ -11,17 +11,17 @@
 #define STOS_MIN_PRI    0x0U
 #define STOS_MAX_PRI    0x8U
 
-#define BYTE_ALIGN 0x7U
+#define BYTE_ALIGN 0x7ULL
 
 typedef struct stos_tcb {
-    void        *sp;
+    uint32_t    *sp;
     void        (*func)(void);
+    uint32_t    *stack_end;
 
     uint32_t    state;
 
     uint32_t    pri;
     uint32_t    timeout;
-    uint32_t    sleep;
 
     struct stos_tcb *next;
     struct stos_tcb *prev;
