@@ -43,4 +43,6 @@ typedef struct {
 
 #define SCB     ((SCB_t     *) SCB_BASE     )
 
+void SysTick_SetPri(uint8_t pri);
+void PendSV_SetPri(uint8_t pri);
 void Enable_Bus_Usage_Flts(void);

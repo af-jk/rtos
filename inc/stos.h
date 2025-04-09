@@ -23,7 +23,7 @@ typedef struct stos_kernel {
 
     stos_tcb_t *next_task;
     stos_tcb_t *active_task;
-    stos_tcb_t idle_task;
+    stos_tcb_t *idle_task;
 } stos_kernel_t;
 
 void STOS_CreateTask(stos_tcb_t * const task,

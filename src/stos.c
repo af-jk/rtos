@@ -230,9 +230,8 @@ void STOS_TimeoutTask(uint32_t timeout) {
 }
 
 void STOS_Init(void (*handler)(void), uint32_t size) {
-    uint8_t priority = 15U;
-    priority = (priority & 0xFU) << PENDSV_PRIORITY_Pos;
-    SCB->SHP[7] = priority;
+    PendSV_SetPri(IRQ_MIN_PRI);
+    SysTick_SetPri(IRQ_MIN_PRI - 1);
 
     if (handler == NULL) {
         handler = &stos_idle_task;
@@ -240,7 +239,7 @@ void STOS_Init(void (*handler)(void), uint32_t size) {
     }
 
     // Add idle task
-    STOS_CreateTask(&stos_ker.idle_task, handler, STOS_IDLE_DEFAULT_PRIORITY, size);
+    STOS_CreateTask(stos_ker.idle_task, handler, STOS_IDLE_DEFAULT_PRIORITY, size);
 
     // Set active_task to be the highest priority task and remove that highest
     // priority task from the list since it's now the active one
@@ -248,7 +247,7 @@ void STOS_Init(void (*handler)(void), uint32_t size) {
     STOS_RemoveTask(stos_ker.active_task);
     stos_ker.active_task->state = TASK_RUNNING;
 
-    SYSTICK_Config();
+    SysTick_Config();
 }
 
 /* Results: 
@@ -272,17 +271,6 @@ void STOS_Schedule() {
 
     if (ready_task_head == NULL) return; // should only happen if all other tasks are blocked
     // and we are currently in the idle task
-
-    /* Check for stack corruption in the active task, if there is corruption do not schedule
-    and instead proceed to default fault */
-    if (STOS_CheckTaskCorruption(stos_ker.active_task)) {
-        // Manually trigger a usage fault
-        volatile uint32_t fault = 1;
-        fault = 1/0;
-
-        // Should never get here
-        for (;;);
-    }
 
     // If the current task has been blocked, switch to the next highest priority
     if (stos_ker.active_task->state == TASK_BLOCKED) {
@@ -337,6 +325,17 @@ void svc_handler(void) {
 
 void sys_tick_handler(void) { 
     stos_tcb_t *runner = stos_ker.list_blocked_head;
+
+    /* Check for stack corruption in the active task, if there is corruption do not schedule
+    and instead proceed to default fault */
+    if (STOS_CheckTaskCorruption(stos_ker.active_task)) {
+        // Manually trigger a usage fault
+        volatile uint32_t fault = 1;
+        fault = 1/0;
+
+        // Should never get here
+        for (;;);
+    }
 
     while (runner != NULL) {
         stos_tcb_t **head = &runner;
