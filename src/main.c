@@ -10,7 +10,7 @@
 #include "stos.h"
 #include "usart.h"
 
-#pragma GCC diagnostic ignored "-Wunused-variable"
+//#pragma GCC diagnostic ignored "-Wunused-variable"
 
 void stos_task_1(void) {
 	volatile uint32_t arr[10] = {0xFFFFFFFF,
@@ -24,7 +24,10 @@ void stos_task_1(void) {
                                  0xFFFFFFFF,
                                  0xFFFFFFFF};
 	while (true) {
-		arr[0]--;
+        GPIO_SetLow(GPIOA, GPIO_PIN_5);
+        for (int i = 0; i < 1000000; i++) {
+            arr[0]--;
+        }
 		continue;
 	}
 }
@@ -40,9 +43,12 @@ void stos_task_2(void) {
                                  0xFFFFFFFF,
                                  0xFFFFFFFF,
                                  0xFFFFFFFF};
+
 	while (true) {
-		arr[0]--;
-		continue;
+        GPIO_SetHigh(GPIOA, GPIO_PIN_5);
+        for (int i = 0; i < 1000000; i++) {
+            arr[0]--;
+        }
 	}
 }
 
@@ -58,13 +64,12 @@ int main(void) {
     Enable_Bus_Usage_Flts();
 
     stos_tcb_t T1 = {0};
-    STOS_CreateTask(&T1, &stos_task_1, 4, 4);
+    STOS_CreateTask(&T1, &stos_task_1, 4, 10);
 
     stos_tcb_t T2 = {0};
-    STOS_CreateTask(&T2, &stos_task_2, 3, 4);
+    STOS_CreateTask(&T2, &stos_task_2, 4, 10);
 
-    STOS_Init(STOS_IDLE_DEFAULT_CONFIG);
-    STOS_Run();
+    STOS_Run(STOS_IDLE_DEFAULT_HANDLER, STOS_IDLE_DEFAULT_PRIORITY);
 
     for (;;) {
     }

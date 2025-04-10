@@ -3,10 +3,6 @@
 
 static stos_kernel_t stos_ker;
 
-void stos_idle_task(void) {
-	for (;;);
-}
-
 void STOS_CreateTask(stos_tcb_t * const task, void (*handler)(void), uint32_t pri,
                      uint32_t size) {
 
@@ -229,12 +225,32 @@ void STOS_TimeoutTask(uint32_t timeout) {
     STOS_Schedule();
 }
 
-void STOS_Init(void (*handler)(void), uint32_t size) {
+
+__attribute__((naked)) static void STOS_Launch(void) {
+    __asm volatile(
+        " LDR   r1, =stos_ker       \n"
+        " LDR   r0, [r1, #0x0C]     \n" // set r0 =stos_ker.active_task
+        " LDR   r1, [r0, #0x00]     \n" // set r1 = the sp of the active task
+        // The current stos_next points to the end of stack registers
+        // which includes stack frame and then r11-r4
+        // to be able to exit into our desired function we need to add
+        // to the psp value the content between r11-r4 toget to r0 where
+        // the processor can by itself return us into the desired function
+        " ADD	r1, r1, #32         \n" // adjust SP of active task to account for frame
+        " MSR   psp, r1             \n"
+        " SVC   #0                  \n"
+
+        " l:                        \n"
+        " NOP                       \n"
+        " B l                       \n");
+}
+
+void STOS_Run(void (*handler)(void), uint32_t size) {
     PendSV_SetPri(IRQ_MIN_PRI);
     SysTick_SetPri(IRQ_MIN_PRI - 1);
 
     if (handler == NULL) {
-        handler = &stos_idle_task;
+        handler = &STOS_IdleTask;
         size = 0;
     }
 
@@ -248,22 +264,8 @@ void STOS_Init(void (*handler)(void), uint32_t size) {
     stos_ker.active_task->state = TASK_RUNNING;
 
     SysTick_Config();
-}
 
-/* Results: 
-0 -> no corruption
-1 -> corruption
-*/
-static uint32_t STOS_CheckTaskCorruption(stos_tcb_t *task) {
-    uint32_t *end_sp = task->stack_end;
-
-    for (uint32_t i = 0; i < STACK_CRPT_DETECT_REG_SIZE*2; i++) {
-        if (*(--end_sp) != STACK_CRPT_DETECT_SEQ) {
-            return 1;
-        }
-    }
-
-    return 0;
+    STOS_Launch();
 }
 
 void STOS_Schedule() {
@@ -298,29 +300,26 @@ void STOS_Schedule() {
     SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
 }
 
-__attribute__((naked)) void STOS_Run(void) {
-    __asm volatile(
-        " LDR   r1, =stos_ker       \n"
-        " LDR   r0, [r1, #0x0C]     \n" // set r0 =stos_ker.active_task
-        " LDR   r1, [r0, #0x00]     \n" // set r1 = the sp of the active task
-        // The current stos_next points to the end of stack registers
-        // which includes stack frame and then r11-r4
-        // to be able to exit into our desired function we need to add
-        // to the psp value the content between r11-r4 toget to r0 where
-        // the processor can by itself return us into the desired function
-        " ADD	r1, r1, #32         \n" // adjust SP of active task to account for frame
-        " MSR   psp, r1             \n"
-        " SVC   #0                  \n"
-
-        " l:                        \n"
-        " NOP                       \n"
-        " B l                       \n");
-}
-
 void svc_handler(void) {
     __asm volatile(
-        "MOV LR, #0xFFFFFFFD \n"
-        "BX LR \n");
+        " MOV   LR, #0xFFFFFFFD \n"
+        " BX    LR              \n");
+}
+
+/* Results: 
+0 -> no corruption
+1 -> corruption
+*/
+static uint32_t STOS_CheckTaskCorruption(stos_tcb_t *task) {
+    uint32_t *end_sp = task->stack_end;
+
+    for (uint32_t i = 0; i < STACK_CRPT_DETECT_REG_SIZE*2; i++) {
+        if (*(--end_sp) != STACK_CRPT_DETECT_SEQ) {
+            return 1;
+        }
+    }
+
+    return 0;
 }
 
 void sys_tick_handler(void) { 
@@ -369,7 +368,7 @@ __attribute__((naked)) void pend_sv_handler(void) {
         " STR 	r0, [r2, #0x00]		\n" // active_task->sp = psp
 
         // Switch desired SP to be that of the next task
-    	" LDR 	r0, = stos_ker		\n"
+    	" LDR 	r0, = stos_ker      \n"
         " LDR   r3, [r0, #0x08]     \n" // r3 = next_task
         " LDR   r1, [r3, #0x00]     \n" // r1 = next_task->sp
 
@@ -389,4 +388,9 @@ __attribute__((naked)) void pend_sv_handler(void) {
         " CPSIE	I                   \n"
         // Return to context of active task
         " BX	lr                  \n");
+}
+
+
+void STOS_IdleTask(void) {
+	for (;;);
 }
