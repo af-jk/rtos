@@ -13,42 +13,18 @@
 //#pragma GCC diagnostic ignored "-Wunused-variable"
 
 void stos_task_1(void) {
-	volatile uint32_t arr[10] = {0xFFFFFFFF,
-                                 0xFFFFFFFF,
-                                 0xFFFFFFFF,
-                                 0xFFFFFFFF,
-                                 0xFFFFFFFF,
-                                 0xFFFFFFFF,
-                                 0xFFFFFFFF,
-                                 0xFFFFFFFF,
-                                 0xFFFFFFFF,
-                                 0xFFFFFFFF};
 	while (true) {
-        GPIO_SetLow(GPIOA, GPIO_PIN_5);
-        for (int i = 0; i < 1000000; i++) {
-            arr[0]--;
-        }
-		continue;
+        //GPIO_SetLow(GPIOA, GPIO_PIN_5);
+        printf("Task 1\r\n");
+        STOS_YieldTask();
 	}
 }
 
 void stos_task_2(void) {
-	volatile uint32_t arr[10] = {0xFFFFFFFF,
-                                 0xFFFFFFFF,
-                                 0xFFFFFFFF,
-                                 0xFFFFFFFF,
-                                 0xFFFFFFFF,
-                                 0xFFFFFFFF,
-                                 0xFFFFFFFF,
-                                 0xFFFFFFFF,
-                                 0xFFFFFFFF,
-                                 0xFFFFFFFF};
-
 	while (true) {
-        GPIO_SetHigh(GPIOA, GPIO_PIN_5);
-        for (int i = 0; i < 1000000; i++) {
-            arr[0]--;
-        }
+        //GPIO_SetHigh(GPIOA, GPIO_PIN_5);
+        printf("Task 2\r\n");
+        STOS_YieldTask();
 	}
 }
 
@@ -64,10 +40,10 @@ int main(void) {
     Enable_Bus_Usage_Flts();
 
     stos_tcb_t T1 = {0};
-    STOS_CreateTask(&T1, &stos_task_1, 4, 10);
+    STOS_CreateTask(&T1, &stos_task_1, 4, 100);
 
     stos_tcb_t T2 = {0};
-    STOS_CreateTask(&T2, &stos_task_2, 4, 10);
+    STOS_CreateTask(&T2, &stos_task_2, 4, 100);
 
     STOS_Run(STOS_IDLE_DEFAULT_HANDLER, STOS_IDLE_DEFAULT_PRIORITY);
 

@@ -3,15 +3,16 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#define TASK_READY      0x00U
-#define TASK_BLOCKED    0x01U
-#define TASK_RUNNING    0x02U
-#define TASK_SUSPENDED  0x03U
+#define STOS_TASK_READY         (0x00U)
+#define STOS_TASK_BLOCKED       (0x01U)
+#define STOS_TASK_RUNNING       (0x02U)
+#define STOS_TASK_SUSPENDED     (0x03U)
+#define STOS_TASK_YIELD         (0x04U)
 
-#define STOS_MIN_PRI    0x0U
-#define STOS_MAX_PRI    0x8U
+#define STOS_MIN_PRI            (0x0U)
+#define STOS_MAX_PRI            (0x8U)
 
-#define BYTE_ALIGN 0x7ULL
+#define BYTE_ALIGN              (0x7ULL)
 
 typedef struct stos_tcb {
     uint32_t    *sp;

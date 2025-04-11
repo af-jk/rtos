@@ -31,6 +31,7 @@ void STOS_CreateTask(stos_tcb_t * const task,
 void STOS_AddTask(stos_tcb_t * const task, uint32_t state);
 void STOS_RemoveTask(stos_tcb_t * const task);
 void STOS_TimeoutTask(uint32_t timeout);
+void STOS_YieldTask(void);
 
 void STOS_Run(void (*handler)(void), uint32_t size);
 void STOS_Schedule(void);
