@@ -1,0 +1,3 @@
+#define STOS_SYSC_LAUNCH_RTOS           (0x0U)
+#define STOS_SYSC_KERNEL_CRIT_START     (0x1U)
+#define STOS_SYSC_KERNEL_CRIT_END       (0x2U)

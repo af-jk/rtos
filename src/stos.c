@@ -58,7 +58,7 @@ void STOS_CreateTask(stos_tcb_t * const task, void (*handler)(void), uint32_t pr
 
     task->sp    = init_sp;
     task->func  = handler;
-    task->pri   = pri;
+    task->cur_pri   = pri;
 
     // Fill in what remains of size - 16 (size of stack frame) w/ pre-set val
     uint32_t *region_end = init_sp - size;
@@ -109,7 +109,7 @@ void STOS_AddTask(stos_tcb_t * const task, uint32_t state) {
            return;
         }
 
-        if (task->pri > (*head)->pri) {
+        if (task->cur_pri > (*head)->cur_pri) {
            task->next = *head;
            task->prev = NULL;
            (*head)->prev = task;
@@ -118,7 +118,7 @@ void STOS_AddTask(stos_tcb_t * const task, uint32_t state) {
         }
 
         stos_tcb_t *runner = stos_ker.list_ready_head;
-        while (runner->next != NULL && task->pri <= runner->next->pri) {
+        while (runner->next != NULL && task->cur_pri <= runner->next->cur_pri) {
             runner = runner->next;
         }
 
@@ -133,8 +133,8 @@ void STOS_AddTask(stos_tcb_t * const task, uint32_t state) {
         return;
     }
 
-    if (state == STOS_TASK_BLOCKED) {
-        stos_tcb_t **head = &(stos_ker.list_blocked_head);
+    if (state == STOS_TASK_TIMEOUT) {
+        stos_tcb_t **head = &(stos_ker.list_timeout_head);
 
         task->state = state;
 
@@ -153,7 +153,7 @@ void STOS_AddTask(stos_tcb_t * const task, uint32_t state) {
            return;
         }
 
-        stos_tcb_t *runner = stos_ker.list_blocked_head;
+        stos_tcb_t *runner = stos_ker.list_timeout_head;
         while (runner->next != NULL && task->timeout >= runner->next->timeout) {
             runner = runner->next;
         }
@@ -175,8 +175,8 @@ void STOS_RemoveTask(stos_tcb_t * const task) {
 
     stos_tcb_t **head = &(stos_ker.list_ready_head);
 
-    if (task->state == STOS_TASK_BLOCKED) {
-        head = &(stos_ker.list_blocked_head);
+    if (task->state == STOS_TASK_TIMEOUT) {
+        head = &(stos_ker.list_timeout_head);
     }
 
     if (*head == NULL) return;
@@ -196,7 +196,7 @@ void STOS_RemoveTask(stos_tcb_t * const task) {
         if (task->state == STOS_TASK_READY) {
             stos_ker.list_ready_head = (*head)->next;
         } else {
-            stos_ker.list_blocked_head = (*head)->next;
+            stos_ker.list_timeout_head = (*head)->next;
         }
 
         (*head)->next = NULL;
@@ -218,20 +218,62 @@ void STOS_RemoveTask(stos_tcb_t * const task) {
     (*head)->prev = NULL;
 }
 
-// Set active task (which is in running state) to blocked state for timeout amt
+// Set active task (which is in running state) to timeout state for timeout amt
+// If I have other exceptions that can modify kernel operations (not systick or pendsv)
+// I'd need to be careful and maybe disable interrupts here
 void STOS_TimeoutTask(uint32_t timeout) {
-    stos_ker.active_task->state = STOS_TASK_BLOCKED;
+    __asm volatile(" CPSID I \n");
+    stos_ker.active_task->state = STOS_TASK_TIMEOUT;
     stos_ker.active_task->timeout = timeout;
     STOS_Schedule();
+    __asm volatile(" CPSIE I \n");
 }
 
 void STOS_YieldTask(void) {
     // Switching the kernel's active task is critical and not disabling interrupts
     // would potentially allow systick to cause issues with scheduling
     __asm volatile(" CPSID I \n");
+    //uint32_t prev_basepri = __stos_kernel_critical_start();
     stos_ker.active_task->state = STOS_TASK_YIELD;
     STOS_Schedule();
+    //__stos_kernel_critical_end(prev_basepri);
     __asm volatile(" CPSIE I \n");
+}
+
+// Like Yield and Timeout, going to assume that the task in question is the kernel's active task
+void STOS_Block(stos_mutex_t *mutex) {
+    uint32_t prev_basepri = __stos_kernel_critical_start();
+
+    stos_ker.active_task->state = STOS_TASK_BLOCKED;
+
+    stos_tcb_t *runner = mutex->blocked_list_head;
+
+    if (runner == NULL) {
+        mutex->blocked_list_head = stos_ker.active_task;
+    }
+
+    while (runner->next != NULL) {
+        runner = runner->next;
+    }
+
+    runner->next = stos_ker.active_task;
+    STOS_Schedule();
+    __stos_kernel_critical_end(prev_basepri);
+}
+
+void STOS_Unblock(stos_mutex_t *mutex) {
+    uint32_t prev_basepri = __stos_kernel_critical_start();
+    stos_tcb_t *runner = mutex->blocked_list_head;
+
+    if (runner != NULL) {
+        STOS_AddTask(runner, STOS_TASK_READY);
+    }
+
+    while (runner->next != NULL) {
+        runner = runner->next;
+        STOS_AddTask(runner, STOS_TASK_READY);
+    }
+    __stos_kernel_critical_end(prev_basepri);
 }
 
 __attribute__((naked)) static void STOS_Launch(void) {
@@ -239,6 +281,7 @@ __attribute__((naked)) static void STOS_Launch(void) {
         " LDR   r1, =stos_ker       \n"
         " LDR   r0, [r1, #0x0C]     \n" // set r0 =stos_ker.active_task
         " LDR   r1, [r0, #0x00]     \n" // set r1 = the sp of the active task
+
         // The current stos_next points to the end of stack registers
         // which includes stack frame and then r11-r4
         // to be able to exit into our desired function we need to add
@@ -246,7 +289,24 @@ __attribute__((naked)) static void STOS_Launch(void) {
         // the processor can by itself return us into the desired function
         " ADD	r1, r1, #32         \n" // adjust SP of active task to account for frame
         " MSR   psp, r1             \n"
+
+        // Modify the thread mode privilege level (unprivileged)
+        // Want to disable floating point, select MSP and set thread mode to unpriviledged
+        // 32 bit reg: ...001
+        // Then once we call SVC we'll be switched to the PSP in thread mode (unpriv)
+        " MOV   r0, #1              \n"
+        " MSR   control, r0         \n"
+
+        //" PUSH {r1, r2}             \n" // Store r1, r2
+        //" mov r0, #1                \n"
+        //" mov r1, #2                \n"
+
         " SVC   #0                  \n"
+
+        //" mov r0, #1                \n"
+        //" mov r1, #2                \n"
+
+        //" POP {r1, r2}              \n"
 
         " l:                        \n"
         " NOP                       \n"
@@ -254,8 +314,8 @@ __attribute__((naked)) static void STOS_Launch(void) {
 }
 
 void STOS_Run(void (*handler)(void), uint32_t size) {
-    PendSV_SetPri(IRQ_MIN_PRI);
-    SysTick_SetPri(IRQ_MIN_PRI);
+    PendSV_SetPri(STOS_MAX_KERNEL_EXCEP_MODIFIER);
+    SysTick_SetPri(STOS_MAX_KERNEL_EXCEP_MODIFIER);
 
     if (handler == NULL) {
         handler = &STOS_IdleTask;
@@ -287,21 +347,21 @@ void STOS_Schedule() {
     stos_tcb_t *ready_task_head = stos_ker.list_ready_head;
 
     if (ready_task_head == NULL) {
-        __asm volatile(" CPSIE I \n");
-        return; // should only happen if all other tasks are blocked
+        //__asm volatile(" CPSIE I \n");
+        return; // should only happen if all other tasks are timed out 
     }
     // and we are currently in the idle task
 
-    // If the current task has been blocked, switch to the next highest priority and timeout current active task
-    if (stos_ker.active_task->state == STOS_TASK_BLOCKED) {
+    // If the current task has been timeed out, switch to the next highest priority and timeout current active task
+    if (stos_ker.active_task->state == STOS_TASK_TIMEOUT) {
         STOS_RemoveTask(ready_task_head); // remove highest priority task from ready list
-        STOS_AddTask(stos_ker.active_task, STOS_TASK_BLOCKED); // add currently running task to blocked list
+        STOS_AddTask(stos_ker.active_task, STOS_TASK_TIMEOUT); // add currently running task to timeout list
 
         stos_ker.next_task = ready_task_head;
         stos_ker.next_task->state = STOS_TASK_RUNNING;
 
         SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
-        __asm volatile(" CPSIE I \n");
+        //__asm volatile(" CPSIE I \n");
         return;
     }
 
@@ -320,8 +380,8 @@ void STOS_Schedule() {
 
     // At this point stos_active must be in the RUNNING state, if it's still the 
     // highest priority don't reschedule
-    if (ready_task_head->pri < stos_ker.active_task->pri) {
-        __asm volatile(" CPSIE I \n");
+    if (ready_task_head->cur_pri < stos_ker.active_task->cur_pri) {
+        //__asm volatile(" CPSIE I \n");
         return;
     }
 
@@ -335,12 +395,6 @@ void STOS_Schedule() {
 
     SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
     //__asm volatile(" CPSIE I \n");
-}
-
-void svc_handler(void) {
-    __asm volatile(
-        " MOV   LR, #0xFFFFFFFD \n"
-        " BX    LR              \n");
 }
 
 /* Results: 
@@ -360,10 +414,9 @@ static uint32_t STOS_CheckTaskCorruption(stos_tcb_t *task) {
 }
 
 void sys_tick_handler(void) { 
-    stos_tcb_t *runner = stos_ker.list_blocked_head;
 
-    /* Check for stack corruption in the active task, if there is corruption do not schedule
-    and instead proceed to default fault */
+    // Check for stack corruption in the active task, if there is corruption do not schedule
+    // and instead proceed to default fault
     if (STOS_CheckTaskCorruption(stos_ker.active_task)) {
         // Manually trigger a usage fault
         volatile uint32_t fault = 1;
@@ -373,10 +426,14 @@ void sys_tick_handler(void) {
         for (;;);
     }
 
+    // Loop through timed out tasks and increment timeout value
+    stos_tcb_t *runner = stos_ker.list_timeout_head;
     while (runner != NULL) {
         stos_tcb_t **head = &runner;
         (*head)->timeout--;
         if ((*head)->timeout == 0) {
+            // If I have other exceptions that can modify kernel operations (not systick or pendsv)
+            // I'd need to be careful and maybe disable interrupts here
             STOS_RemoveTask((*head));
             STOS_AddTask((*head), STOS_TASK_READY);
         }
@@ -386,6 +443,7 @@ void sys_tick_handler(void) {
     STOS_Schedule(); 
 }
 
+// We don't want prologue and epilogue sequences
 __attribute__((naked)) void pend_sv_handler(void) {
     __asm volatile(
         " CPSID     I               \n"
