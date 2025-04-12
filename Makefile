@@ -7,15 +7,19 @@ LDFLAGS ?= -Wl,-Map=build/cm4.map -T./cm4.ld -nostartfiles --specs nosys.specs -
 _dummy := $(shell mkdir -p build)
 BUILDDIR := build
 
-SOURCEDIR := src
-SOURCES := $(shell find $(SOURCEDIR) -name '*.c') 
-SOURCES += $(shell find $(SOURCEDIR) -name '*.s')
+CSOURCEDIR := src
+ASMSOURCEDIR := $(CSOURCEDIR)/asm
+
+SOURCES := $(shell find $(CSOURCEDIR) -name '*.c') 
+ASMSOURCES := $(shell find $(ASMSOURCEDIR) -name '*.s')
 
 INCDIR := ./inc 
 INCLUDES := $(addprefix -I, $(INCDIR))
 
-OBJECTS := $(patsubst $(SOURCEDIR)/%.c,$(BUILDDIR)/%.o,$(filter %.c,$(SOURCES)))
-OBJECTS += $(patsubst $(SOURCEDIR)/%.s,$(BUILDDIR)/%.o,$(filter %.s,$(SOURCES)))
+COBJECTS := $(patsubst $(CSOURCEDIR)/%.c,$(BUILDDIR)/%.o,$(filter %.c,$(SOURCES)))
+ASMOBJECTS += $(patsubst $(ASMSOURCEDIR)/%.s,$(BUILDDIR)/%.o,$(filter %.s,$(ASMSOURCES)))
+
+OBJECTS := $(ASMOBJECTS) $(COBJECTS)
 
 build: firmware.bin
 
@@ -28,11 +32,11 @@ firmware.bin: firmware.elf
 flash: firmware.bin
 	st-flash --reset write $< 0x8000000
 
-$(BUILDDIR)/%.o: $(SOURCEDIR)/%.c 
-	arm-none-eabi-gcc -c $(CFLAGS) $(INCLUDES) $< -o $@
-
-$(BUILDDIR)/%.o: $(SOURCEDIR)/%.s
+$(BUILDDIR)/%.o: $(ASMSOURCEDIR)/%.s
 	arm-none-eabi-as -c $< -o $@
+
+$(BUILDDIR)/%.o: $(CSOURCEDIR)/%.c 
+	arm-none-eabi-gcc -c $(CFLAGS) $(INCLUDES) $< -o $@
 
 .PHONY: clean
 clean:
