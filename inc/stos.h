@@ -34,7 +34,7 @@ void STOS_YieldTask(void);
 void STOS_Block(stos_mutex_t *mutex);
 void STOS_Unblock(stos_mutex_t *mutex);
 
+
 void STOS_Run(void (*handler)(void), uint32_t size);
-void STOS_TriggerPendSV(void);
 void STOS_Schedule(void);
 void STOS_IdleTask(void);

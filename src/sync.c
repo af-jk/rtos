@@ -1,5 +1,6 @@
 #include "sync.h"
 #include "stos.h"
+#include "syscall.h"
 
 /*
  * Returns the value stored within lock
@@ -118,13 +119,25 @@ bool STOS_MutexUnlock(stos_mutex_t *mutex) {
      * unless this is done, at this point the previous LDREX instruction
      * has likely been overwritten and the STREX will fail.
      */
+
+    __asm volatile("CPSID   I   \n");
     __stos_check_lock(mutex);
 
-    // Need to signal signal to the mutex's blocked tasks that they can be added to ready list
-    STOS_Unblock(mutex); 
-    STOS_YieldTask();
 
-    return __stos_write_to_lock(0, &(mutex->lock));
+    uint32_t lock_status = __stos_write_to_lock(0, &(mutex->lock));
+
+    if (lock_status == 0) {
+        // Need to signal signal to the mutex's blocked tasks that they can be added to ready list
+        // Further the unblock task will restore the holders priority (in case we bumped it 
+        // to prevent priority inversion)
+        STOS_Unblock(mutex); 
+        STOS_YieldTask();
+        mutex->holder = NULL;
+        mutex->pri = 0;
+    }
+
+    __asm volatile("CPSIE   I   \n");
+    return lock_status;
 }
 
 // Do not need to implement priority inversion logic, they generally shouldn't be used for critical region locking

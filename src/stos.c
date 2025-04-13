@@ -223,26 +223,26 @@ void STOS_RemoveTask(stos_tcb_t * const task) {
 // If I have other exceptions that can modify kernel operations (not systick or pendsv)
 // I'd need to be careful and maybe disable interrupts here
 void STOS_TimeoutTask(uint32_t timeout) {
-    __asm volatile(" CPSID I \n");
+    STOS_Syscall_KernelCriticalStart();
 
     stos_ker.active_task->state = STOS_TASK_TIMEOUT;
     stos_ker.active_task->timeout = timeout;
     STOS_Schedule();
 
-    __asm volatile(" CPSIE I \n");
+    STOS_Syscall_KernelCriticalEnd();
 }
 
 void STOS_YieldTask(void) {
-    __stos_kernel_critical_start();
+    STOS_Syscall_KernelCriticalStart();
 
     stos_ker.active_task->state = STOS_TASK_YIELD;
     STOS_Schedule();
 
-    __stos_kernel_critical_end();
+    STOS_Syscall_KernelCriticalEnd();
 }
 
 void STOS_Block(stos_mutex_t *mutex) {
-    __stos_kernel_critical_start();
+    STOS_Syscall_KernelCriticalStart();
 
     stos_ker.active_task->state = STOS_TASK_BLOCKED;
 
@@ -252,7 +252,7 @@ void STOS_Block(stos_mutex_t *mutex) {
         mutex->blocked_list_head = stos_ker.active_task;
         STOS_Schedule();
 
-        __stos_kernel_critical_end();
+        STOS_Syscall_KernelCriticalEnd();
         return;
     }
 
@@ -263,11 +263,13 @@ void STOS_Block(stos_mutex_t *mutex) {
     runner->next = stos_ker.active_task;
     STOS_Schedule();
 
-    __stos_kernel_critical_end();
+    STOS_Syscall_KernelCriticalEnd();
 }
 
 void STOS_Unblock(stos_mutex_t *mutex) {
-    __stos_kernel_critical_start();
+    STOS_Syscall_KernelCriticalStart();
+
+    stos_ker.active_task->cur_pri = stos_ker.active_task->base_pri;
 
     stos_tcb_t *runner = mutex->blocked_list_head;
 
@@ -280,7 +282,7 @@ void STOS_Unblock(stos_mutex_t *mutex) {
         STOS_AddTask(runner, STOS_TASK_READY);
     }
 
-    __stos_kernel_critical_end();
+    STOS_Syscall_KernelCriticalEnd();
 }
 
 __attribute__((naked)) static void STOS_Launch(void) {
@@ -334,22 +336,6 @@ void STOS_Run(void (*handler)(void), uint32_t size) {
     STOS_Launch();
 }
 
-void STOS_TriggerPendSV(void) {
-    // Check to see if we're currently in thread/handler mode
-    // Will use the IPSR register
-    uint32_t active_exception;
-    __asm volatile("MRS %0, IPSR": "=r" (active_exception));
-
-    if (active_exception > 0) {
-        // Handler mode, can just trigger pendsv
-        PendSV_Set();
-        return;
-    }
-
-    // Otherwise, in thread mode and need to activate a system call
-    __asm volatile("SVC     #1  \n");
-}
-
 /*
 I don't need to disable interrupts here so long as I'm guaranteed no exceptions other than
 PendSV and SysTick modify internal kernel data structures
@@ -374,8 +360,7 @@ void STOS_Schedule() {
         stos_ker.next_task = ready_task_head;
         stos_ker.next_task->state = STOS_TASK_RUNNING;
         
-        STOS_TriggerPendSV();
-        //__asm volatile(" CPSIE I \n");
+        STOS_Syscall_TriggerPendSV();
         return;
     }
 
@@ -387,8 +372,7 @@ void STOS_Schedule() {
         stos_ker.next_task = ready_task_head;
         stos_ker.next_task->state = STOS_TASK_RUNNING;
 
-        STOS_TriggerPendSV();
-        //__asm volatile(" CPSIE I \n");
+        STOS_Syscall_TriggerPendSV();
         return;
     }
 
@@ -399,8 +383,7 @@ void STOS_Schedule() {
         stos_ker.next_task = ready_task_head;
         stos_ker.next_task->state = STOS_TASK_RUNNING;
 
-        STOS_TriggerPendSV();
-        //__asm volatile(" CPSIE I \n");
+        STOS_Syscall_TriggerPendSV();
         return;
     }
 
@@ -408,7 +391,6 @@ void STOS_Schedule() {
     // At this point stos_active must be in the RUNNING state, if it's still the 
     // highest priority don't reschedule
     if (ready_task_head->cur_pri < stos_ker.active_task->cur_pri) {
-        //__asm volatile(" CPSIE I \n");
         return;
     }
 
@@ -420,8 +402,7 @@ void STOS_Schedule() {
 
     STOS_AddTask(stos_ker.active_task, STOS_TASK_READY);
 
-    STOS_TriggerPendSV();
-    //__asm volatile(" CPSIE I \n");
+    STOS_Syscall_TriggerPendSV();
 }
 
 /* Results: 
