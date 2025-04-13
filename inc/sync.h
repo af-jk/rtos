@@ -14,15 +14,13 @@ typedef struct stos_mutex {
     stos_tcb_t *blocked_list_head; // maintain singly linked list
 } stos_mutex_t;
 
-typedef enum stos_mutex_wait {
-    STOS_MUTEX_WAIT_NONE,
-    STOS_MUTEX_WAIT_RETRY,
-    STOS_MUTEX_WAIT_INDEF
-} stos_mutex_wait_t;
+#define STOS_MUTEX_WAIT_NONE    (0U)
+#define STOS_MUTEX_WAIT_RETRY   (1U)
+#define STOS_MUTEX_WAIT_INDEF   (2U)
 
 typedef stos_mutex_t stos_sem_t;
 
-void STOS_MutexLock(stos_mutex_t *mutex, stos_tcb_t *task, stos_mutex_wait_t wait);
+void STOS_MutexLock(stos_mutex_t *mutex, stos_tcb_t *task, uint32_t wait);
 bool STOS_MutexUnlock(stos_mutex_t *mutex);
 
 

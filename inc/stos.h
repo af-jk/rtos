@@ -13,10 +13,6 @@
 #define STACK_CRPT_DETECT_SEQ           (0xFAFAFAFA)
 
 
-// From core_cm4.h
-#define SCB_ICSR_PENDSVSET_Pos          (28U)
-#define SCB_ICSR_PENDSVSET_Msk          (1UL << SCB_ICSR_PENDSVSET_Pos) 
-
 // Does the kernel need to keep track of blocked tasks?
 typedef struct stos_kernel {
     stos_tcb_t *list_ready_head;
@@ -36,7 +32,9 @@ void STOS_RemoveTask(stos_tcb_t * const task);
 void STOS_TimeoutTask(uint32_t timeout);
 void STOS_YieldTask(void);
 void STOS_Block(stos_mutex_t *mutex);
+void STOS_Unblock(stos_mutex_t *mutex);
 
 void STOS_Run(void (*handler)(void), uint32_t size);
+void STOS_TriggerPendSV(void);
 void STOS_Schedule(void);
 void STOS_IdleTask(void);

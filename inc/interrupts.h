@@ -4,6 +4,9 @@
 
 #define STOS_MAX_KERNEL_EXCEP_MODIFIER (0xF)
 
+#define SCB_ICSR_PENDSVSET_Pos          (28U)
+#define SCB_ICSR_PENDSVSET_Msk          (1UL << SCB_ICSR_PENDSVSET_Pos) 
+
 #define SYSTICK_BASE (SCS_BASE + 0x0010UL)
 
 typedef struct {
@@ -16,6 +19,4 @@ typedef struct {
 #define SYSTICK ((SYSTICK_t *) SYSTICK_BASE )
 
 void SysTick_Config(void);
-
-uint32_t __stos_kernel_critical_start(void);
-void __stos_kernel_critical_end(uint32_t prev_basepri);
+void PendSV_Set(void);

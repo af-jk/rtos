@@ -66,7 +66,7 @@ static bool STOS_MutexTryLock(stos_mutex_t *mutex) {
     return STOS_MUTEX_NOT_ACQUIRED;
 }
 
-void STOS_MutexLock(stos_mutex_t *mutex, stos_tcb_t *task, stos_mutex_wait_t wait) {
+void STOS_MutexLock(stos_mutex_t *mutex, stos_tcb_t *task, uint32_t wait) {
 
     if (wait == STOS_MUTEX_WAIT_NONE) {
 
@@ -119,6 +119,11 @@ bool STOS_MutexUnlock(stos_mutex_t *mutex) {
      * has likely been overwritten and the STREX will fail.
      */
     __stos_check_lock(mutex);
+
+    // Need to signal signal to the mutex's blocked tasks that they can be added to ready list
+    STOS_Unblock(mutex); 
+    STOS_YieldTask();
+
     return __stos_write_to_lock(0, &(mutex->lock));
 }
 

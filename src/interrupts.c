@@ -22,3 +22,7 @@ void SysTick_Config(void) {
 
     SYSTICK->CTRL |= 1UL;  // Enable SYSTICK
 }
+
+void PendSV_Set(void) {
+    SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
+} 

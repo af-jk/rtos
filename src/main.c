@@ -10,19 +10,27 @@
 #include "stos.h"
 #include "usart.h"
 
-//#pragma GCC diagnostic ignored "-Wunused-variable"
+stos_mutex_t mutex;
 
+stos_tcb_t T1;
 void stos_task_1(void) {
+    STOS_MutexLock(&mutex, &T1, STOS_MUTEX_WAIT_NONE);
+    static int i = 0;
 	while (true) {
         //GPIO_SetLow(GPIOA, GPIO_PIN_5);
+        i++;
         printf("Task 1\r\n");
-        STOS_YieldTask();
+        if (i > 10) {
+            STOS_MutexUnlock(&mutex);
+            i = 0;
+        }
 	}
 }
 
+stos_tcb_t T2;
 void stos_task_2(void) {
+    STOS_MutexLock(&mutex, &T2, STOS_MUTEX_WAIT_NONE);
 	while (true) {
-        //GPIO_SetHigh(GPIOA, GPIO_PIN_5);
         printf("Task 2\r\n");
         STOS_YieldTask();
 	}
@@ -39,10 +47,8 @@ int main(void) {
     GPIO_SetMode(GPIOA, GPIO_PIN_5, GPIO_OUTPUT);
     Enable_Bus_Usage_Flts();
 
-    stos_tcb_t T1 = {0};
     STOS_CreateTask(&T1, &stos_task_1, 4, 100);
 
-    stos_tcb_t T2 = {0};
     STOS_CreateTask(&T2, &stos_task_2, 4, 100);
 
     STOS_Run(STOS_IDLE_DEFAULT_HANDLER, STOS_IDLE_DEFAULT_PRIORITY);

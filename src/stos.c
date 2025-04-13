@@ -1,4 +1,5 @@
 #include "stos.h"
+#include "syscall.h"
 #include "interrupts.h"
 
 static stos_kernel_t stos_ker;
@@ -223,26 +224,25 @@ void STOS_RemoveTask(stos_tcb_t * const task) {
 // I'd need to be careful and maybe disable interrupts here
 void STOS_TimeoutTask(uint32_t timeout) {
     __asm volatile(" CPSID I \n");
+
     stos_ker.active_task->state = STOS_TASK_TIMEOUT;
     stos_ker.active_task->timeout = timeout;
     STOS_Schedule();
+
     __asm volatile(" CPSIE I \n");
 }
 
 void STOS_YieldTask(void) {
-    // Switching the kernel's active task is critical and not disabling interrupts
-    // would potentially allow systick to cause issues with scheduling
-    __asm volatile(" CPSID I \n");
-    //uint32_t prev_basepri = __stos_kernel_critical_start();
+    __stos_kernel_critical_start();
+
     stos_ker.active_task->state = STOS_TASK_YIELD;
     STOS_Schedule();
-    //__stos_kernel_critical_end(prev_basepri);
-    __asm volatile(" CPSIE I \n");
+
+    __stos_kernel_critical_end();
 }
 
-// Like Yield and Timeout, going to assume that the task in question is the kernel's active task
 void STOS_Block(stos_mutex_t *mutex) {
-    uint32_t prev_basepri = __stos_kernel_critical_start();
+    __stos_kernel_critical_start();
 
     stos_ker.active_task->state = STOS_TASK_BLOCKED;
 
@@ -250,6 +250,10 @@ void STOS_Block(stos_mutex_t *mutex) {
 
     if (runner == NULL) {
         mutex->blocked_list_head = stos_ker.active_task;
+        STOS_Schedule();
+
+        __stos_kernel_critical_end();
+        return;
     }
 
     while (runner->next != NULL) {
@@ -258,11 +262,13 @@ void STOS_Block(stos_mutex_t *mutex) {
 
     runner->next = stos_ker.active_task;
     STOS_Schedule();
-    __stos_kernel_critical_end(prev_basepri);
+
+    __stos_kernel_critical_end();
 }
 
 void STOS_Unblock(stos_mutex_t *mutex) {
-    uint32_t prev_basepri = __stos_kernel_critical_start();
+    __stos_kernel_critical_start();
+
     stos_tcb_t *runner = mutex->blocked_list_head;
 
     if (runner != NULL) {
@@ -273,7 +279,8 @@ void STOS_Unblock(stos_mutex_t *mutex) {
         runner = runner->next;
         STOS_AddTask(runner, STOS_TASK_READY);
     }
-    __stos_kernel_critical_end(prev_basepri);
+
+    __stos_kernel_critical_end();
 }
 
 __attribute__((naked)) static void STOS_Launch(void) {
@@ -297,16 +304,7 @@ __attribute__((naked)) static void STOS_Launch(void) {
         " MOV   r0, #1              \n"
         " MSR   control, r0         \n"
 
-        //" PUSH {r1, r2}             \n" // Store r1, r2
-        //" mov r0, #1                \n"
-        //" mov r1, #2                \n"
-
         " SVC   #0                  \n"
-
-        //" mov r0, #1                \n"
-        //" mov r1, #2                \n"
-
-        //" POP {r1, r2}              \n"
 
         " l:                        \n"
         " NOP                       \n"
@@ -331,9 +329,25 @@ void STOS_Run(void (*handler)(void), uint32_t size) {
     STOS_RemoveTask(stos_ker.active_task);
     stos_ker.active_task->state = STOS_TASK_RUNNING;
 
-    SysTick_Config();
+    //SysTick_Config();
 
     STOS_Launch();
+}
+
+void STOS_TriggerPendSV(void) {
+    // Check to see if we're currently in thread/handler mode
+    // Will use the IPSR register
+    uint32_t active_exception;
+    __asm volatile("MRS %0, IPSR": "=r" (active_exception));
+
+    if (active_exception > 0) {
+        // Handler mode, can just trigger pendsv
+        PendSV_Set();
+        return;
+    }
+
+    // Otherwise, in thread mode and need to activate a system call
+    __asm volatile("SVC     #1  \n");
 }
 
 /*
@@ -359,8 +373,8 @@ void STOS_Schedule() {
 
         stos_ker.next_task = ready_task_head;
         stos_ker.next_task->state = STOS_TASK_RUNNING;
-
-        SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
+        
+        STOS_TriggerPendSV();
         //__asm volatile(" CPSIE I \n");
         return;
     }
@@ -373,10 +387,23 @@ void STOS_Schedule() {
         stos_ker.next_task = ready_task_head;
         stos_ker.next_task->state = STOS_TASK_RUNNING;
 
-        SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
+        STOS_TriggerPendSV();
         //__asm volatile(" CPSIE I \n");
         return;
     }
+
+    // If the current task has blocked, switch to the next highest priority task.
+    if (stos_ker.active_task->state == STOS_TASK_BLOCKED) {
+        STOS_RemoveTask(ready_task_head); // remove highest priority task from ready list
+
+        stos_ker.next_task = ready_task_head;
+        stos_ker.next_task->state = STOS_TASK_RUNNING;
+
+        STOS_TriggerPendSV();
+        //__asm volatile(" CPSIE I \n");
+        return;
+    }
+
 
     // At this point stos_active must be in the RUNNING state, if it's still the 
     // highest priority don't reschedule
@@ -393,7 +420,7 @@ void STOS_Schedule() {
 
     STOS_AddTask(stos_ker.active_task, STOS_TASK_READY);
 
-    SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
+    STOS_TriggerPendSV();
     //__asm volatile(" CPSIE I \n");
 }
 
