@@ -57,8 +57,9 @@ void STOS_CreateTask(stos_tcb_t * const task, void (*handler)(void), uint32_t pr
     /* Now we update the local sp copy, which this is the new top of the stack. This is 
     aligned because we pushed 16 elements (if it was odd, we'd need to further ensure alignment) */
 
-    task->sp    = init_sp;
-    task->func  = handler;
+    task->sp        = init_sp;
+    task->func      = handler;
+    task->base_pri  = pri;
     task->cur_pri   = pri;
 
     // Fill in what remains of size - 16 (size of stack frame) w/ pre-set val
@@ -232,18 +233,31 @@ void STOS_TimeoutTask(uint32_t timeout) {
     STOS_Syscall_KernelCriticalEnd();
 }
 
+/*
+Description: Yield simply tells the RTOS to re-run the scheduler. If multilpe tasks of same high priority
+exist, will cause them to switch between each other Otherwise, the highest priority task should run, regardless
+of a call to yield (if no other task matches or exceeds its priority)
+
+Potential Issues: We disable SysTick and PendSV during a Yield, but there can arise a situation where a SysTick occurs
+right after a yield, causing a further handoff that may not be desireable. A way to solve this may be to reset the 
+SysTick during a yield, but this is not implemented yet.
+*/
 void STOS_YieldTask(void) {
     STOS_Syscall_KernelCriticalStart();
-
-    stos_ker.active_task->state = STOS_TASK_YIELD;
     STOS_Schedule();
-
     STOS_Syscall_KernelCriticalEnd();
 }
 
-void STOS_Block(stos_mutex_t *mutex) {
-    STOS_Syscall_KernelCriticalStart();
+/*
+Requirements: Must be preceded and followed up by kernel critical region system calls.
 
+General Use: Should only be called within Mutex kernel code.
+
+Description: When the active task attempts to acquire a mutex that has already been held. It will be removed
+from its active status and stored within the mutex's list of blocked tasks, where it will return once the mutex
+is unlocked through an Mutex_Unblock signal
+*/
+void STOS_Block(stos_mutex_t *mutex) {
     stos_ker.active_task->state = STOS_TASK_BLOCKED;
 
     stos_tcb_t *runner = mutex->blocked_list_head;
@@ -262,27 +276,45 @@ void STOS_Block(stos_mutex_t *mutex) {
 
     runner->next = stos_ker.active_task;
     STOS_Schedule();
-
-    STOS_Syscall_KernelCriticalEnd();
 }
 
-void STOS_Unblock(stos_mutex_t *mutex) {
-    STOS_Syscall_KernelCriticalStart();
+/*
+Requirements: Must be preceded and followed up by kernel critical region system calls.
 
-    stos_ker.active_task->cur_pri = stos_ker.active_task->base_pri;
+General Use: Should only be called within Mutex kernel code.
+
+Description: When a mutex is unlocked, this will cause all the tasks that were blocked due to that mutex to 
+unblock themselves. While a task is blocking, it's priority gets temporarily boosted to be that of it's
+highest blocked task (to avoid priority inversion). Thus, we must call the scheduler under the context of
+the active task having that new priority, however, we must reset that priority after scheduling.
+*/
+void STOS_Unblock(stos_mutex_t *mutex) {
 
     stos_tcb_t *runner = mutex->blocked_list_head;
+    
+    // Clearing the list
+    mutex->blocked_list_head = NULL;
 
-    if (runner != NULL) {
+
+    while (runner != NULL) {
+        stos_tcb_t *next_node = runner->next;
+
+        // Clear the the current node
+        runner->prev = NULL;
+        runner->next = NULL;
+
+        // Add the current node to the ready list
         STOS_AddTask(runner, STOS_TASK_READY);
+
+        // Get the next node
+        runner = next_node;
     }
 
-    while (runner->next != NULL) {
-        runner = runner->next;
-        STOS_AddTask(runner, STOS_TASK_READY);
-    }
+    // Now that all tasks have been unblocked, call the scheduler
+    STOS_Schedule();
 
-    STOS_Syscall_KernelCriticalEnd();
+    // After the scheduler has been called, restore the priority of the currently active task (before the context switch)
+    stos_ker.active_task->cur_pri = stos_ker.active_task->base_pri;
 }
 
 __attribute__((naked)) static void STOS_Launch(void) {
@@ -331,7 +363,7 @@ void STOS_Run(void (*handler)(void), uint32_t size) {
     STOS_RemoveTask(stos_ker.active_task);
     stos_ker.active_task->state = STOS_TASK_RUNNING;
 
-    //SysTick_Config();
+    SysTick_Config();
 
     STOS_Launch();
 }
@@ -343,16 +375,13 @@ PendSV and SysTick modify internal kernel data structures
 If they do, will need to trigger mask interrupts both here and in within systick
 */
 void STOS_Schedule() {
-    //__asm volatile(" CPSID I \n");
     stos_tcb_t *ready_task_head = stos_ker.list_ready_head;
 
     if (ready_task_head == NULL) {
-        //__asm volatile(" CPSIE I \n");
         return; // should only happen if all other tasks are timed out 
     }
-    // and we are currently in the idle task
 
-    // If the current task has been timeed out, switch to the next highest priority and timeout current active task
+    // If the current task has been timed out, switch to the next highest priority and timeout current active task
     if (stos_ker.active_task->state == STOS_TASK_TIMEOUT) {
         STOS_RemoveTask(ready_task_head); // remove highest priority task from ready list
         STOS_AddTask(stos_ker.active_task, STOS_TASK_TIMEOUT); // add currently running task to timeout list
@@ -360,18 +389,6 @@ void STOS_Schedule() {
         stos_ker.next_task = ready_task_head;
         stos_ker.next_task->state = STOS_TASK_RUNNING;
         
-        STOS_Syscall_TriggerPendSV();
-        return;
-    }
-
-    // If the current task has yielded, switch to the next highest priority task and add current active task to ready list
-    if (stos_ker.active_task->state == STOS_TASK_YIELD) {
-        STOS_RemoveTask(ready_task_head); // remove highest priority task from ready list
-        STOS_AddTask(stos_ker.active_task, STOS_TASK_READY); // add currently running task to ready list
-
-        stos_ker.next_task = ready_task_head;
-        stos_ker.next_task->state = STOS_TASK_RUNNING;
-
         STOS_Syscall_TriggerPendSV();
         return;
     }
@@ -386,7 +403,6 @@ void STOS_Schedule() {
         STOS_Syscall_TriggerPendSV();
         return;
     }
-
 
     // At this point stos_active must be in the RUNNING state, if it's still the 
     // highest priority don't reschedule
@@ -495,5 +511,7 @@ __attribute__((naked)) void pend_sv_handler(void) {
 
 
 void STOS_IdleTask(void) {
-	for (;;);
+	for (;;) {
+        continue;
+    }
 }

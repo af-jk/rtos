@@ -47,7 +47,7 @@ static bool STOS_MutexTryLock(stos_mutex_t *mutex) {
      * changes to the variable, it will allow the store instruciton and return 0.
      * Otherwise, if a change has happened since, it will fail
      * 
-     * Essneitally, there are two main (maybe more?) ways this lock will fail:
+     * Essentially, there are two main (maybe more?) ways this lock will fail:
      * 1: The lock is already taken (LDREX returns 1)
      * 2: The lock is not taken, but somehow the mutex has been written to
      */
@@ -68,6 +68,7 @@ static bool STOS_MutexTryLock(stos_mutex_t *mutex) {
 }
 
 void STOS_MutexLock(stos_mutex_t *mutex, stos_tcb_t *task, uint32_t wait) {
+    STOS_Syscall_KernelCriticalStart();
 
     if (wait == STOS_MUTEX_WAIT_NONE) {
 
@@ -110,6 +111,8 @@ void STOS_MutexLock(stos_mutex_t *mutex, stos_tcb_t *task, uint32_t wait) {
             // continually retry
         }
     }
+
+    STOS_Syscall_KernelCriticalEnd();
 }
 
 bool STOS_MutexUnlock(stos_mutex_t *mutex) {
@@ -120,7 +123,7 @@ bool STOS_MutexUnlock(stos_mutex_t *mutex) {
      * has likely been overwritten and the STREX will fail.
      */
 
-    __asm volatile("CPSID   I   \n");
+    STOS_Syscall_KernelCriticalStart();
     __stos_check_lock(mutex);
 
 
@@ -131,12 +134,11 @@ bool STOS_MutexUnlock(stos_mutex_t *mutex) {
         // Further the unblock task will restore the holders priority (in case we bumped it 
         // to prevent priority inversion)
         STOS_Unblock(mutex); 
-        STOS_YieldTask();
         mutex->holder = NULL;
         mutex->pri = 0;
     }
 
-    __asm volatile("CPSIE   I   \n");
+    STOS_Syscall_KernelCriticalEnd();
     return lock_status;
 }
 
@@ -155,6 +157,8 @@ void STOS_SemWait(stos_sem_t *sem) {
 }
 
 void STOS_SemPost(stos_sem_t *sem) {
+    STOS_Syscall_KernelCriticalStart();
     uint32_t sem_val = __stos_check_lock(sem);
     __stos_write_to_lock(sem_val + 1, &(sem->lock));
+    STOS_Syscall_KernelCriticalEnd();
 }

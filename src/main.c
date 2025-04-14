@@ -9,32 +9,48 @@
 #include "sync.h"
 #include "stos.h"
 #include "usart.h"
+#include "syscall.h"
 
 stos_mutex_t mutex;
 
 stos_tcb_t T1;
 void stos_task_1(void) {
-    STOS_MutexLock(&mutex, &T1, STOS_MUTEX_WAIT_NONE);
-    static int i = 0;
-	while (true) {
-        //GPIO_SetLow(GPIOA, GPIO_PIN_5);
-        i++;
-        printf("Task 1\r\n");
-        if (i > 10) {
-            STOS_MutexUnlock(&mutex);
-            i = 0;
+	// Timeout highest priority task for 2 sys ticks to ensure task 2 gets the mutex
+	STOS_TimeoutTask(1);
+	for (;;) {
+        // Lock the mutex
+        STOS_MutexLock(&mutex, &T1, STOS_MUTEX_WAIT_NONE);
+        for (int i = 0; i < 2; i++) {
+            printf("Task 1\r\n");
         }
+        //Once done with operation, unlock mutex
+        STOS_MutexUnlock(&mutex);
 	}
 }
 
 stos_tcb_t T2;
 void stos_task_2(void) {
-    STOS_MutexLock(&mutex, &T2, STOS_MUTEX_WAIT_NONE);
-	while (true) {
-        printf("Task 2\r\n");
-        STOS_YieldTask();
+	for (;;) {
+        // Lock the mutex and takes a while to process information
+        STOS_MutexLock(&mutex, &T2, STOS_MUTEX_WAIT_NONE);
+        for (int i = 0; i < 10000; i++) {
+            printf("Task 2\r\n");
+        }
+        // Once done with operation, unlock mutex
+        STOS_MutexUnlock(&mutex);
 	}
 }
+
+stos_tcb_t T3;
+void stos_task_3(void) {
+	STOS_TimeoutTask(3);
+	// Will try to run while task 1 is blocked, but because task 2's priority gets elevated
+	for (;;) {
+        printf("Task 3\r\n");
+	}
+}
+
+
 
 int main(void) {
     RCC_Enable_GPIOA_Clk();
@@ -47,9 +63,12 @@ int main(void) {
     GPIO_SetMode(GPIOA, GPIO_PIN_5, GPIO_OUTPUT);
     Enable_Bus_Usage_Flts();
 
-    STOS_CreateTask(&T1, &stos_task_1, 4, 100);
+    STOS_CreateTask(&T1, &stos_task_1, 6, 100);
 
     STOS_CreateTask(&T2, &stos_task_2, 4, 100);
+
+    STOS_CreateTask(&T3, &stos_task_3, 5, 100);
+
 
     STOS_Run(STOS_IDLE_DEFAULT_HANDLER, STOS_IDLE_DEFAULT_PRIORITY);
 

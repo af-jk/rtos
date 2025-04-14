@@ -4,10 +4,9 @@
 #include <stddef.h>
 
 #define STOS_TASK_READY         (0x00U)
-#define STOS_TASK_BLOCKED       (0x01U)
-#define STOS_TASK_RUNNING       (0x02U)
+#define STOS_TASK_RUNNING       (0x01U)
+#define STOS_TASK_BLOCKED       (0x02U)
 #define STOS_TASK_TIMEOUT       (0x03U)
-#define STOS_TASK_YIELD         (0x04U)
 
 #define STOS_MIN_PRI            (0x0U)
 #define STOS_MAX_PRI            (0x8U)
