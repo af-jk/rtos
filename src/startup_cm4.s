@@ -48,12 +48,11 @@ CompareBssAddress:
     msr     psp, r1
     // No need for ISB because we are still in context of MSP
 
-    // Control register: disable floating point, select MSP and say when starting off, thread mode is privileged
-    // Reset value: 0...000 and desired 0...000 => No need to set
-    // Later once we start the RTOS, we'll change this so that thread mode is unprivileged (within each task)
+    // Within main we want to use the MSP with privileged operation
+    // Default control value is 0 which works in this case 
 
-    bl      main
-    bx      lr
+    ldr     r3, =main 
+    bx      r3
 .size _start, .-_start
 
     .section .text.default_handler,"ax",%progbits
