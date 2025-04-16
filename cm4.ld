@@ -8,7 +8,7 @@ MEMORY {
 _mstack = ORIGIN(SRAM) + LENGTH(SRAM);
 _pstack = ORIGIN(SRAM) + LENGTH(SRAM)/2;
 
-HIDDEN(__vector_table_size = (16 + 96 + 1) * 4);
+HIDDEN(__vector_table_size = (1 + 16 + 96) * 4);
 HIDDEN(__word_align__ = 4);
 
 SECTIONS
