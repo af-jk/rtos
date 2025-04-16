@@ -11,46 +11,78 @@
 #include "usart.h"
 #include "syscall.h"
 
+#define BUFFER_SIZE (5U)
+
+uint32_t buffer[BUFFER_SIZE];
+uint32_t in = 0;
+uint32_t out = 0;
+
 stos_mutex_t mutex;
+stos_sem_t empty;
+stos_sem_t full;
 
-stos_tcb_t T1;
-void stos_task_1(void) {
-	// Timeout highest priority task for 2 sys ticks to ensure task 2 gets the mutex
-	STOS_TimeoutTask(1);
-	for (;;) {
-        // Lock the mutex
+stos_tcb_t T1 = {0};
+void producer(void) {
+
+    uint32_t item = 0;
+	while (1) {
+        item++;
+        printf("PRODUCER:\tWaiting for an empty slot ...\r\n");
+        STOS_SemWait(&empty);
+        printf("PRODUCER:\tAcquired an empty slot\r\n");
         STOS_MutexLock(&mutex, &T1, STOS_MUTEX_WAIT_NONE);
-        for (int i = 0; i < 2; i++) {
-            printf("Task 1\r\n");
-        }
-        //Once done with operation, unlock mutex
+        printf("PRODUCER:\tProducing item %ld at index %ld\r\n", item, in);
+
+        buffer[in] = item;
+        in = (in + 1) % BUFFER_SIZE;
+
         STOS_MutexUnlock(&mutex);
-	}
+        printf("PRODUCER:\tProduced item\r\n");
+        STOS_SemPost(&full);
+    }
 }
 
-stos_tcb_t T2;
-void stos_task_2(void) {
-	for (;;) {
-        // Lock the mutex and takes a while to process information
+stos_tcb_t T2 = {0};
+void consumer(void) {
+	while (1) {
+        printf("CONSUMER 1:\tWaiting for an full slot ...\r\n");
+        STOS_SemWait(&full);
+        printf("CONSUMER 1:\tAcquired for full slot\r\n");
         STOS_MutexLock(&mutex, &T2, STOS_MUTEX_WAIT_NONE);
-        for (int i = 0; i < 10000; i++) {
-            printf("Task 2\r\n");
-        }
-        // Once done with operation, unlock mutex
+        printf("CONSUMER 1:\tConsuming at index %ld\r\n", out);
+
+        uint32_t item = buffer[out];
+        out = (out + 1) % BUFFER_SIZE;
+
         STOS_MutexUnlock(&mutex);
-	}
+        printf("CONSUMER 1:\tConsumed item %ld\r\n", item);
+        STOS_SemPost(&empty);
+
+        printf("CONSUMER 1:\t Timed out\r\n");
+        STOS_TimeoutTask(2);
+    }
 }
 
-stos_tcb_t T3;
-void stos_task_3(void) {
-	STOS_TimeoutTask(3);
-	// Will try to run while task 1 is blocked, but because task 2's priority gets elevated
-	for (;;) {
-        printf("Task 3\r\n");
-	}
+stos_tcb_t T3 = {0};
+void consumer2(void) {
+	while (1) {
+        printf("CONSUMER 2:\tWaiting for an full slot ...\r\n");
+        STOS_SemWait(&full);
+        printf("CONSUMER 2:\tAcquired for full slot\r\n");
+        STOS_MutexLock(&mutex, &T3, STOS_MUTEX_WAIT_NONE);
+        printf("CONSUMER 2:\tConsuming at index %ld\r\n", out);
+
+        uint32_t item = buffer[out];
+        out = (out + 1) % BUFFER_SIZE;
+
+        STOS_MutexUnlock(&mutex);
+        printf("CONSUMER 2:\tConsumed item %ld\r\n", item);
+        STOS_SemPost(&empty);
+
+        printf("CONSUMER 2:\t Timed out\r\n");
+        STOS_TimeoutTask(3);
+    }
 }
-
-
 
 int main(void) {
     RCC_Enable_GPIOA_Clk();
@@ -63,15 +95,16 @@ int main(void) {
     GPIO_SetMode(GPIOA, GPIO_PIN_5, GPIO_OUTPUT);
     Enable_Bus_Usage_Flts();
 
-    STOS_CreateTask(&T1, &stos_task_1, 6, 100);
+    STOS_SemInit(&empty, BUFFER_SIZE);
+    STOS_SemInit(&full, 0);
 
-    STOS_CreateTask(&T2, &stos_task_2, 4, 100);
+    STOS_CreateTask(&T1, &producer, 3, 200);
 
-    STOS_CreateTask(&T3, &stos_task_3, 5, 100);
+    STOS_CreateTask(&T2, &consumer, 3, 200);
 
+    STOS_CreateTask(&T3, &consumer2, 3, 200);
 
     STOS_Run(STOS_IDLE_DEFAULT_HANDLER, STOS_IDLE_DEFAULT_PRIORITY);
-
     for (;;) {
     }
 }
