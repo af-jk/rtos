@@ -31,7 +31,11 @@ void STOS_CreateTask(stos_tcb_t * const task, void (*handler)(void), uint32_t pr
 
     // Can assume this is always going to be valid
     uint32_t *psp;
-    __asm volatile(" MRS   %[psp_var], psp    \n" : [psp_var] "=r"(psp) : :);
+    __asm volatile(" MRS    %0, PSP" 
+                   : "=r" (psp) // outputs
+                   :            // inputs
+                   :            // clobbers
+    );
     uint32_t *init_sp = (uint32_t *)((uint32_t)psp);
 
     *(--init_sp) = (1U << 24);          // xPSR
@@ -224,13 +228,13 @@ void STOS_RemoveTask(stos_tcb_t * const task) {
 // If I have other exceptions that can modify kernel operations (not systick or pendsv)
 // I'd need to be careful and maybe disable interrupts here
 void STOS_TimeoutTask(uint32_t timeout) {
-    STOS_Syscall_KernelCriticalStart();
+    uint32_t cur_basepri = STOS_Syscall_KernelCriticalStart();
 
     stos_ker.active_task->state = STOS_TASK_TIMEOUT;
     stos_ker.active_task->timeout = timeout;
     STOS_Schedule();
 
-    STOS_Syscall_KernelCriticalEnd();
+    STOS_Syscall_KernelCriticalEnd(cur_basepri);
 }
 
 /*
@@ -243,9 +247,9 @@ right after a yield, causing a further handoff that may not be desireable. A way
 SysTick during a yield, but this is not implemented yet.
 */
 void STOS_YieldTask(void) {
-    STOS_Syscall_KernelCriticalStart();
+    uint32_t cur_basepri = STOS_Syscall_KernelCriticalStart();
     STOS_Schedule();
-    STOS_Syscall_KernelCriticalEnd();
+    STOS_Syscall_KernelCriticalEnd(cur_basepri);
 }
 
 /*
@@ -266,7 +270,6 @@ void STOS_Block(stos_mutex_t *mutex) {
         mutex->blocked_list_head = stos_ker.active_task;
         STOS_Schedule();
 
-        STOS_Syscall_KernelCriticalEnd();
         return;
     }
 
@@ -295,7 +298,10 @@ void STOS_Unblock(stos_mutex_t *mutex) {
     // Clearing the list
     mutex->blocked_list_head = NULL;
 
-
+    // Design questions
+    // 1. Do we want to unblock all tasks or just the head?
+    // 2. Do we want to schedule immediately afterwards?
+    //    - Should that be configurable?
     while (runner != NULL) {
         stos_tcb_t *next_node = runner->next;
 
@@ -332,14 +338,16 @@ __attribute__((naked)) static void STOS_Launch(void) {
         " MSR   psp, r1             \n"
 
         // Modify the thread mode privilege level (unprivileged)
-        // Want to disable floating point, select MSP and set thread mode to unpriviledged
+        // Keep floating point disabled, maintain the MSP for now and set thread mode to unpriviledged
         // 32 bit reg: ...001
-        // Then once we call SVC we'll be switched to the PSP in thread mode (unpriv)
+        // Then once we call SVC we'll be switched to the PSP in thread mode and setting bit 0 will force unpriv. 
         " MOV   r0, #1              \n"
         " MSR   control, r0         \n"
 
-        " SVC   #0                  \n"
+        " LDR   r2, =STOS_Syscall_LaunchSTOS    \n"
+        " BX    r2                              \n"
 
+        // Should never get here
         " l:                        \n"
         " NOP                       \n"
         " B l                       \n");
