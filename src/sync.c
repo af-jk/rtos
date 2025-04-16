@@ -9,35 +9,36 @@
  * 0 -> Not currently locked
  * 1 -> Currently locked 
  */
-__attribute__((naked)) static uint32_t __stos_check_lock(stos_mutex_t *mutex) {
-    /*
-    * mutex will be passed as param through R0
-    * store into R1, perform the LDREX instruction and get the result through R0
-    * default return value of ARM is through r0 (BX lr will return r0)
-    */
-    __asm volatile(
-        " MOV   r1, r0          \n"
-        " LDREX r0, [r1, #0x00] \n"
-        " BX lr                 \n"
+static uint32_t __stos_check_lock(stos_mutex_t *mutex) {
+
+    volatile uint32_t result;
+
+    // Using the memory clobber to ensure compiler doesn't try to optimize the load
+    __asm volatile(" LDREX  %0, [%1, #0x00]" 
+                   : "=r" (result)          // outputs
+                   : "r" (&(mutex->lock))   // inputs
+                   : "memory"               // clobbers
     );
+
+    return result;
 }
 
 /*
  * Returns 0 if value can be written
  * Returns 1 if value can't be written
  */
-__attribute__((naked)) static uint32_t __stos_write_to_lock(uint32_t val, uint32_t *addr) {
-    /*
-     * val will be passed as param through R0
-     * mutex will be passed as param through R1
-     * store val into R2 (use R0 as return value for after the STREX inst.)
-     */
-
-    __asm volatile(
-        " MOV   r2, r0              \n"
-        " STREX r0, r2, [r1, 0x00]  \n"
-        " BX lr                     \n"
+static uint32_t __stos_write_to_lock(uint32_t val, uint32_t *addr) {
+    volatile uint32_t result;
+    
+    // Using the memory clobber to ensure compiler doesn't try to optimize the load
+    __asm volatile(" STREX %0, %1, [%2, #0x00]" 
+                   : "=r" (result)          // outputs
+                   : "r" (val),             // inputs
+                     "r" (addr)
+                   : "memory"               // clobbers
     );
+
+    return result;
 }
 
 static bool STOS_MutexTryLock(stos_mutex_t *mutex) {
@@ -51,15 +52,14 @@ static bool STOS_MutexTryLock(stos_mutex_t *mutex) {
      * 1: The lock is already taken (LDREX returns 1)
      * 2: The lock is not taken, but somehow the mutex has been written to
      */
-    uint32_t status;
 
     // Check to see if mutex is currently being accessed
     if (__stos_check_lock(mutex) == 0) {
 
         // Attempt to set lock to 1
-        status = __stos_write_to_lock(1, &(mutex->lock));
+        volatile uint32_t write_status = __stos_write_to_lock(1, &(mutex->lock));
 
-        if (status == 1) return STOS_MUTEX_NOT_ACQUIRED;
+        if (write_status == 1) return STOS_MUTEX_NOT_ACQUIRED;
 
         return STOS_MUTEX_ACQUIRED;
     }
@@ -68,7 +68,7 @@ static bool STOS_MutexTryLock(stos_mutex_t *mutex) {
 }
 
 void STOS_MutexLock(stos_mutex_t *mutex, stos_tcb_t *task, uint32_t wait) {
-    STOS_Syscall_KernelCriticalStart();
+    uint32_t cur_basepri = STOS_Syscall_KernelCriticalStart();
 
     if (wait == STOS_MUTEX_WAIT_NONE) {
 
@@ -93,26 +93,7 @@ void STOS_MutexLock(stos_mutex_t *mutex, stos_tcb_t *task, uint32_t wait) {
         }
     }
 
-    // Consider the priority inversion in this case
-    if (wait == STOS_MUTEX_WAIT_RETRY) {
-        while (STOS_MutexTryLock(mutex) == STOS_MUTEX_NOT_ACQUIRED) {
-            if (task->cur_pri > mutex->pri) {
-                mutex->pri = task->cur_pri;
-                mutex->holder->cur_pri = mutex->pri;
-            }
-            STOS_YieldTask();
-            // Yield and try again
-        }
-    }
-
-    if (wait == STOS_MUTEX_WAIT_INDEF) {
-        while (STOS_MutexTryLock(mutex) == STOS_MUTEX_NOT_ACQUIRED) {
-            continue;
-            // continually retry
-        }
-    }
-
-    STOS_Syscall_KernelCriticalEnd();
+    STOS_Syscall_KernelCriticalEnd(cur_basepri);
 }
 
 bool STOS_MutexUnlock(stos_mutex_t *mutex) {
@@ -123,11 +104,11 @@ bool STOS_MutexUnlock(stos_mutex_t *mutex) {
      * has likely been overwritten and the STREX will fail.
      */
 
-    STOS_Syscall_KernelCriticalStart();
+    uint32_t cur_basepri = STOS_Syscall_KernelCriticalStart();
     __stos_check_lock(mutex);
 
 
-    uint32_t lock_status = __stos_write_to_lock(0, &(mutex->lock));
+    volatile uint32_t lock_status = __stos_write_to_lock(0, &(mutex->lock));
 
     if (lock_status == 0) {
         // Need to signal signal to the mutex's blocked tasks that they can be added to ready list
@@ -138,7 +119,7 @@ bool STOS_MutexUnlock(stos_mutex_t *mutex) {
         mutex->pri = 0;
     }
 
-    STOS_Syscall_KernelCriticalEnd();
+    STOS_Syscall_KernelCriticalEnd(cur_basepri);
     return lock_status;
 }
 
@@ -157,8 +138,6 @@ void STOS_SemWait(stos_sem_t *sem) {
 }
 
 void STOS_SemPost(stos_sem_t *sem) {
-    STOS_Syscall_KernelCriticalStart();
     uint32_t sem_val = __stos_check_lock(sem);
     __stos_write_to_lock(sem_val + 1, &(sem->lock));
-    STOS_Syscall_KernelCriticalEnd();
 }
