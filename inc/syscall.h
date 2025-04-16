@@ -5,8 +5,11 @@
 #define STOS_SYSC_KERNEL_CRIT_START     (0x1U)
 #define STOS_SYSC_KERNEL_CRIT_END       (0x2U)
 
+#include <stdint.h>
+
+void STOS_Syscall_LaunchSTOS(void);
 void STOS_Syscall_TriggerPendSV(void);
 void STOS_Syscall_DisableInterrupts(void);
 void STOS_Syscall_EnableInterrupts(void);
-void STOS_Syscall_KernelCriticalStart(void);
-void STOS_Syscall_KernelCriticalEnd(void);
+uint32_t STOS_Syscall_KernelCriticalStart(void);
+void STOS_Syscall_KernelCriticalEnd(uint32_t old_basepri);

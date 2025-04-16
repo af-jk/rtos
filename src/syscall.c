@@ -37,7 +37,6 @@ __attribute((naked)) void svc_handler(void) {
         // We can extract it by getting our previous pc instruction and
     	// Checking the LSB
 
-    	// Why use 28 earlier???
     	" LDR   r3, [r2, #24]                       \n"
         " LDR  	r2, [r3, #-2]                       \n"
 
@@ -47,7 +46,7 @@ __attribute((naked)) void svc_handler(void) {
 
         // Pick syscall
         " CMP   r3, #0                              \n"
-        " BEQ   SYSC_LAUNCH_RTOS                    \n"
+        " BEQ   SYSC_LAUNCH_STOS                    \n"
 
         " CMP   r3, #1                              \n"
         " BEQ   SYSC_TRIGGER_PENDSV                 \n"
@@ -72,7 +71,7 @@ __attribute((naked)) void svc_handler(void) {
         2. Restore the original basepri
         */
 
-        " SYSC_LAUNCH_RTOS:                         \n"
+        " SYSC_LAUNCH_STOS:                         \n"
         " MOV   lr, #0xFFFFFFFD                     \n"
         " BX    lr                                  \n"
 
@@ -102,15 +101,20 @@ __attribute((naked)) void svc_handler(void) {
         // exception priority above systick and pendsv (no other exceptions should directly modify)
         // kernel data structures
         " MOV   r1, #0xE0                           \n"
+        " MRS   r5, basepri                         \n"
         " MSR   basepri, r1                         \n"
         " BX    lr                                  \n"
 
     	" SYSC_KERNEL_CRIT_END:                     \n"
-        " PUSH  {r0}                                \n"
-        " MOV   r0, #0x0                            \n"
-        " MSR   basepri, r0                         \n"
-        " POP   {r0}                                \n"
+        " MSR   basepri, r5                         \n"
         " BX    lr                                  \n"
+    );
+}
+
+__attribute__((naked)) void STOS_Syscall_LaunchSTOS(void) {
+    __asm volatile(
+        " SVC   #0  \n"
+        " BX    lr  \n"
     );
 }
 
@@ -118,7 +122,11 @@ void STOS_Syscall_TriggerPendSV(void) {
     // Check to see if we're currently in thread/handler mode
     // Will use the IPSR register
     uint32_t active_exception;
-    __asm volatile("MRS %0, IPSR": "=r" (active_exception));
+    __asm volatile(" MRS    %0, IPSR" 
+                   : "=r" (active_exception)    // outputs
+                   :                            // inputs
+                   :                            // clobbers
+    );
 
     if (active_exception > 0) {
         // Handler mode, can just trigger pendsv
@@ -140,10 +148,17 @@ __attribute__((naked)) void STOS_Syscall_DisableInterrupts(void) {
     );
 }
 
+// There's an issue here! We re-enable interrupts but have not reset our control register priority
+// to the appropriate value yet. There is a possibility that we get interrupted between the point
+// where we re-enable interrupts and before we set the thread privilege
+
+// This would be an issue if SysTick/PendSV run. Realistically, only SysTick should be able to interfere
+// here, perhaps a solution would be to reset the SysTick->VAL register?
 __attribute__((naked)) void STOS_Syscall_EnableInterrupts(void) {
     __asm volatile(
         " CPSIE I               \n"
         " PUSH  {r0}            \n"
+        " MRS   r0, control     \n" // get current control value
         " ORR   r0, r0, #0x1    \n" // set priv to 1
         " MSR   control, r0     \n"
         " POP   {r0}            \n"
@@ -151,21 +166,41 @@ __attribute__((naked)) void STOS_Syscall_EnableInterrupts(void) {
     );
 }
 
-// Issue: This sequence clears the previously held basepri value, which made be an issue if a user is
-// relying on it. Need to determine a way to return the current basepri through the svc exception.
-// However, it could also be argued that this sort of priv vs. unpriv RTOS implies not personally 
-// modifying privileged registers within a task
+uint32_t STOS_Syscall_KernelCriticalStart(void) {
+    
+    // Save r5's value onto stack
+    // Call SVC to copy basepri to r5
+    // Save basepri to cur_basepri
+    // Restore r5
 
-__attribute__((naked)) void STOS_Syscall_KernelCriticalStart(void) {
-    __asm volatile(
-        " SVC    #3 \n"
-        " BX     lr \n"
+    // When comparing dissassemblies, it looks like the clobber is causing GCC
+    // to automatically push and pop r5 (beyond what I'm doing), but since we have
+    // no guarantees this behavior is always going to be the same, it's worthwile to 
+    // manually do that and waste a few instructions and a bit of stack space
+    volatile uint32_t cur_basepri;
+    __asm volatile(" PUSH   {r5}    \n" 
+                   " SVC    #3      \n"
+                   " MOV    %0, r5  \n" 
+                   " POP    {r5}    \n"
+                   : "=r" (cur_basepri) // outputs
+                   :                    // inputs
+                   : "r5"               // clobbers
     );
+
+    return cur_basepri;
 }
 
-__attribute__((naked)) void STOS_Syscall_KernelCriticalEnd(void) {
-    __asm volatile(
-        " SVC    #4 \n"
-        " BX     lr \n"
+void STOS_Syscall_KernelCriticalEnd(uint32_t old_basepri) {
+    // Save r5's value onto stack
+    // Set r5 to old_basepri
+    // Call SVC to restore basepri value
+    // Restore r5
+    __asm volatile(" PUSH   {r5}    \n" 
+                   " MOV    r5, %0  \n"
+                   " SVC    #4      \n"
+                   " POP    {r5}    \n"
+                   :                   // outputs
+                   : "r" (old_basepri) // inputs
+                   : "r5"              // clobbers
     );
 }
