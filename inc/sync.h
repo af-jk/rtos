@@ -18,7 +18,7 @@ typedef struct stos_mutex {
 
 typedef stos_mutex_t stos_sem_t;
 
-void STOS_MutexLock(stos_mutex_t *mutex, stos_tcb_t *task, uint32_t wait);
+bool STOS_MutexLock(stos_mutex_t *mutex, stos_tcb_t *task, uint32_t wait);
 bool STOS_MutexUnlock(stos_mutex_t *mutex);
 
 void STOS_SemInit(stos_sem_t *sem, uint32_t val);

@@ -11,76 +11,59 @@
 #include "usart.h"
 #include "syscall.h"
 
-#define BUFFER_SIZE (5U)
-
-uint32_t buffer[BUFFER_SIZE];
-uint32_t in = 0;
-uint32_t out = 0;
-
 stos_mutex_t mutex;
-stos_sem_t empty;
-stos_sem_t full;
 
 stos_tcb_t T1 = {0};
-void producer(void) {
-
-    uint32_t item = 0;
+void task1(void) {
 	while (1) {
-        item++;
-        printf("PRODUCER:\tWaiting for an empty slot ...\r\n");
-        STOS_SemWait(&empty);
-        printf("PRODUCER:\tAcquired an empty slot\r\n");
-        STOS_MutexLock(&mutex, &T1, STOS_MUTEX_WAIT_NONE);
-        printf("PRODUCER:\tProducing item %ld at index %ld\r\n", item, in);
+        // Acquire mutex
+        while (STOS_MutexLock(&mutex, &T1, STOS_MUTEX_WAIT_NONE) != STOS_MUTEX_ACQUIRED) {
+            continue;
+        }
 
-        buffer[in] = item;
-        in = (in + 1) % BUFFER_SIZE;
+        // Enter critical region
 
+        for (volatile int i = 0; i < 1000; i++) {
+            GPIO_Toggle(GPIOA, GPIO_PIN_8);
+            GPIO_Toggle(GPIOA, GPIO_PIN_8);
+        }
+
+        // Exit critical region
         STOS_MutexUnlock(&mutex);
-        printf("PRODUCER:\tProduced item\r\n");
-        STOS_SemPost(&full);
     }
 }
 
 stos_tcb_t T2 = {0};
-void consumer(void) {
+void task2(void) {
+    STOS_TimeoutTask(2);
 	while (1) {
-        printf("CONSUMER 1:\tWaiting for an full slot ...\r\n");
-        STOS_SemWait(&full);
-        printf("CONSUMER 1:\tAcquired for full slot\r\n");
-        STOS_MutexLock(&mutex, &T2, STOS_MUTEX_WAIT_NONE);
-        printf("CONSUMER 1:\tConsuming at index %ld\r\n", out);
-
-        uint32_t item = buffer[out];
-        out = (out + 1) % BUFFER_SIZE;
-
-        STOS_MutexUnlock(&mutex);
-        printf("CONSUMER 1:\tConsumed item %ld\r\n", item);
-        STOS_SemPost(&empty);
-
-        printf("CONSUMER 1:\t Timed out\r\n");
-        STOS_TimeoutTask(2);
+        for (volatile int i = 0; i < 1000; i++) {
+            GPIO_Toggle(GPIOA, GPIO_PIN_7);
+            GPIO_Toggle(GPIOA, GPIO_PIN_7);
+        }
+        STOS_TimeoutTask(1);
     }
 }
 
 stos_tcb_t T3 = {0};
-void consumer2(void) {
+void task3(void) {
+    STOS_TimeoutTask(1);
 	while (1) {
-        printf("CONSUMER 2:\tWaiting for an full slot ...\r\n");
-        STOS_SemWait(&full);
-        printf("CONSUMER 2:\tAcquired for full slot\r\n");
-        STOS_MutexLock(&mutex, &T3, STOS_MUTEX_WAIT_NONE);
-        printf("CONSUMER 2:\tConsuming at index %ld\r\n", out);
+        // Acquire mutex
+        while (STOS_MutexLock(&mutex, &T3, STOS_MUTEX_WAIT_NONE) != STOS_MUTEX_ACQUIRED) {
+            continue;
+        }
 
-        uint32_t item = buffer[out];
-        out = (out + 1) % BUFFER_SIZE;
+        // Enter critical region
+        for (volatile int i = 0; i < 1000; i++) {
+            GPIO_Toggle(GPIOA, GPIO_PIN_6);
+            GPIO_Toggle(GPIOA, GPIO_PIN_6);
+        }
 
+        // Exit critical region
         STOS_MutexUnlock(&mutex);
-        printf("CONSUMER 2:\tConsumed item %ld\r\n", item);
-        STOS_SemPost(&empty);
 
-        printf("CONSUMER 2:\t Timed out\r\n");
-        STOS_TimeoutTask(3);
+        STOS_TimeoutTask(1);
     }
 }
 
@@ -92,17 +75,26 @@ int main(void) {
     printf("------------------------\r\n");
 
 
+    GPIO_SetMode(GPIOA, GPIO_PIN_1, GPIO_OUTPUT);
+    GPIO_SetMode(GPIOA, GPIO_PIN_4, GPIO_OUTPUT);
     GPIO_SetMode(GPIOA, GPIO_PIN_5, GPIO_OUTPUT);
+    GPIO_SetMode(GPIOA, GPIO_PIN_6, GPIO_OUTPUT);   // 1st
+    GPIO_SetMode(GPIOA, GPIO_PIN_7, GPIO_OUTPUT);   // 2nd
+    GPIO_SetMode(GPIOA, GPIO_PIN_8, GPIO_OUTPUT);   // 4th
+    GPIO_SetMode(GPIOA, GPIO_PIN_9, GPIO_OUTPUT);   // 3rd
+    GPIO_SetMode(GPIOA, GPIO_PIN_10, GPIO_OUTPUT);  // 5th
     Enable_Bus_Usage_Flts();
 
-    STOS_SemInit(&empty, BUFFER_SIZE);
-    STOS_SemInit(&full, 0);
 
-    STOS_CreateTask(&T1, &producer, 3, 200);
+    STOS_CreateTask(&T1, &task1, 1, 200);
 
-    STOS_CreateTask(&T2, &consumer, 3, 200);
+    STOS_CreateTask(&T2, &task2, 2, 200);
 
-    STOS_CreateTask(&T3, &consumer2, 3, 200);
+    STOS_CreateTask(&T3, &task3, 3, 200);
+
+    for (int i = 0; i < 100000; i++) {
+        continue;
+    }
 
     STOS_Run(STOS_IDLE_DEFAULT_HANDLER, STOS_IDLE_DEFAULT_PRIORITY);
     for (;;) {

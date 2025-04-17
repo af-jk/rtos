@@ -16,6 +16,7 @@ operations requested by a user task must occur under the context of a svc call (
 
 #include "syscall.h"
 #include "interrupts.h"
+#include "gpio.h"
 
 __attribute((naked)) void svc_handler(void) {
      __asm volatile (
@@ -130,11 +131,15 @@ void STOS_Syscall_TriggerPendSV(void) {
 
     if (active_exception > 0) {
         // Handler mode, can just trigger pendsv
+        GPIO_Toggle(GPIOA, GPIO_PIN_9);
+        GPIO_Toggle(GPIOA, GPIO_PIN_9);
         PendSV_Set();
         return;
     }
 
     // Otherwise, in thread mode and need to activate a system call
+    GPIO_Toggle(GPIOA, GPIO_PIN_9);
+    GPIO_Toggle(GPIOA, GPIO_PIN_9);
     __asm volatile("SVC #1 \n");
 }
 

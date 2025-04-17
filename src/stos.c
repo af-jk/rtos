@@ -1,6 +1,7 @@
 #include "stos.h"
 #include "syscall.h"
 #include "interrupts.h"
+#include "gpio.h"
 
 static stos_kernel_t stos_ker;
 
@@ -309,6 +310,8 @@ void STOS_Unblock(stos_mutex_t *mutex) {
         runner->prev = NULL;
         runner->next = NULL;
 
+        runner->cur_pri = runner->base_pri;
+
         // Add the current node to the ready list
         STOS_AddTask(runner, STOS_TASK_READY);
 
@@ -316,11 +319,11 @@ void STOS_Unblock(stos_mutex_t *mutex) {
         runner = next_node;
     }
 
-    // Now that all tasks have been unblocked, call the scheduler
-    STOS_Schedule();
-
     // After the scheduler has been called, restore the priority of the currently active task (before the context switch)
     stos_ker.active_task->cur_pri = stos_ker.active_task->base_pri;
+
+    // Now that all tasks have been unblocked, call the scheduler
+    STOS_Schedule();
 }
 
 __attribute__((naked)) static void STOS_Launch(void) {
@@ -446,6 +449,8 @@ static uint32_t STOS_CheckTaskCorruption(stos_tcb_t *task) {
 }
 
 void sys_tick_handler(void) { 
+    GPIO_Toggle(GPIOA, GPIO_PIN_10);
+    GPIO_Toggle(GPIOA, GPIO_PIN_10);
 
     // Check for stack corruption in the active task, if there is corruption do not schedule
     // and instead proceed to default fault

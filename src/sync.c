@@ -1,5 +1,6 @@
 #include "sync.h"
 #include "stos.h"
+#include "gpio.h"
 #include "syscall.h"
 
 /*
@@ -67,12 +68,15 @@ static bool STOS_MutexTryLock(stos_mutex_t *mutex) {
     return STOS_MUTEX_NOT_ACQUIRED;
 }
 
-void STOS_MutexLock(stos_mutex_t *mutex, stos_tcb_t *task, uint32_t wait) {
+bool STOS_MutexLock(stos_mutex_t *mutex, stos_tcb_t *task, uint32_t wait) {
     uint32_t cur_basepri = STOS_Syscall_KernelCriticalStart();
 
-    if (wait == STOS_MUTEX_WAIT_NONE) {
+    bool lock_status = STOS_MutexTryLock(mutex);
 
-        bool lock_status = STOS_MutexTryLock(mutex);
+    GPIO_Toggle(GPIOA, GPIO_PIN_4);
+    GPIO_Toggle(GPIOA, GPIO_PIN_4);
+
+    if (wait == STOS_MUTEX_WAIT_NONE) {
 
         if (lock_status == STOS_MUTEX_ACQUIRED) {
             mutex->pri = task->cur_pri;
@@ -94,6 +98,8 @@ void STOS_MutexLock(stos_mutex_t *mutex, stos_tcb_t *task, uint32_t wait) {
     }
 
     STOS_Syscall_KernelCriticalEnd(cur_basepri);
+
+    return lock_status;
 }
 
 bool STOS_MutexUnlock(stos_mutex_t *mutex) {
@@ -111,6 +117,10 @@ bool STOS_MutexUnlock(stos_mutex_t *mutex) {
     volatile uint32_t lock_status = __stos_write_to_lock(0, &(mutex->lock));
 
     if (lock_status == 0) {
+
+        GPIO_Toggle(GPIOA, GPIO_PIN_1);
+        GPIO_Toggle(GPIOA, GPIO_PIN_1);
+
         // Need to signal signal to the mutex's blocked tasks that they can be added to ready list
         // Further the unblock task will restore the holders priority (in case we bumped it 
         // to prevent priority inversion)
