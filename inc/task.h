@@ -3,15 +3,17 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#define STOS_TASK_READY         (0x00U)
-#define STOS_TASK_RUNNING       (0x01U)
-#define STOS_TASK_BLOCKED       (0x02U)
-#define STOS_TASK_TIMEOUT       (0x03U)
-
 #define STOS_MIN_PRI            (0x0U)
 #define STOS_MAX_PRI            (0x8U)
-
 #define BYTE_ALIGN              (0x7U)
+
+typedef enum stos_task_state {
+    STOS_TASK_READY,
+    STOS_TASK_RUNNING,
+    STOS_TASK_BLOCKED,
+    STOS_TASK_TIMEOUT,
+    STOS_TASK_ERROR
+} stos_task_state_t;
 
 typedef struct stos_tcb {
     uint32_t    *sp;

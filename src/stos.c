@@ -5,10 +5,10 @@
 
 static stos_kernel_t stos_ker;
 
-void STOS_CreateTask(stos_tcb_t * const task, void (*handler)(void), uint32_t pri,
+void STOS_CreateTask(stos_tcb_t * const task, void (*func)(void), uint32_t pri,
                      uint32_t size) {
 
-    if (task == NULL || handler == NULL) return;
+    if (task == NULL || func == NULL) return;
 
     /* 
     Need to ensure 8-byte alignment on stack - per ARM ATPCS.
@@ -40,7 +40,7 @@ void STOS_CreateTask(stos_tcb_t * const task, void (*handler)(void), uint32_t pr
     uint32_t *init_sp = (uint32_t *)((uint32_t)psp);
 
     *(--init_sp) = (1U << 24);          // xPSR
-    *(--init_sp) = (uint32_t)handler;   // PC
+    *(--init_sp) = (uint32_t)func;      // PC
     *(--init_sp) = 0x0000000EU;         // LR - thread doesn't return (infinite loop so
                                         // this doesn't matter)
     *(--init_sp) = 0x0000000CU;         // R12
@@ -63,7 +63,7 @@ void STOS_CreateTask(stos_tcb_t * const task, void (*handler)(void), uint32_t pr
     aligned because we pushed 16 elements (if it was odd, we'd need to further ensure alignment) */
 
     task->sp        = init_sp;
-    task->func      = handler;
+    task->func      = func;
     task->base_pri  = pri;
     task->cur_pri   = pri;
 
@@ -101,92 +101,91 @@ void STOS_CreateTask(stos_tcb_t * const task, void (*handler)(void), uint32_t pr
     STOS_AddTask(task, STOS_TASK_READY);
 }
 
-void STOS_AddTask(stos_tcb_t * const task, uint32_t state) {
-    if (task == NULL) return;
-
+// Returning the error is redundant because we will never call AddTask with state != READY or TIMEOUT
+static uint32_t STOS_CompareTasks(stos_tcb_t *first, stos_tcb_t *second, uint32_t state) {
     if (state == STOS_TASK_READY) {
-        stos_tcb_t **head = &(stos_ker.list_ready_head);
-
-        task->state = state;
-
-        if (*head == NULL) {
-           *head = task; 
-           task->prev = NULL;
-           task->next = NULL;
-           return;
-        }
-
-        if (task->cur_pri > (*head)->cur_pri) {
-           task->next = *head;
-           task->prev = NULL;
-           (*head)->prev = task;
-           *head = task;
-           return;
-        }
-
-        stos_tcb_t *runner = stos_ker.list_ready_head;
-        while (runner->next != NULL && task->cur_pri <= runner->next->cur_pri) {
-            runner = runner->next;
-        }
-
-        // At this point we're either at the end or at a priority lower than the current task
-
-        head = &runner;
-
-        task->next = (*head)->next;
-        task->prev = (*head);
-        (*head)->next->prev = task;
-        (*head)->next = task;
-        return;
+        return (first->cur_pri > second->cur_pri);
     }
 
     if (state == STOS_TASK_TIMEOUT) {
-        stos_tcb_t **head = &(stos_ker.list_timeout_head);
+        return (first->timeout < second->timeout);
+    }
 
-        task->state = state;
+    return STOS_TASK_ERROR;
+}
 
-        if (*head == NULL) {
-           *head = task; 
-           task->prev = NULL;
-           task->next = NULL;
-           return;
-        }
+static stos_tcb_t** STOS_GetListHead(uint32_t state) {
+    if (state == STOS_TASK_READY) {
+        return &stos_ker.list_ready_head;
+    }
 
-        if (task->timeout < (*head)->timeout) {
-           task->next = *head;
-           task->prev = NULL;
-           (*head)->prev = task;
-           *head = task;
-           return;
-        }
+    if (state == STOS_TASK_TIMEOUT) {
+        return &stos_ker.list_timeout_head;
+    }
 
-        stos_tcb_t *runner = stos_ker.list_timeout_head;
-        while (runner->next != NULL && task->timeout >= runner->next->timeout) {
-            runner = runner->next;
-        }
+    return NULL;
+}
 
-        // At this point we're either at the end or at a priority lower than the current task
+void STOS_AddTask(stos_tcb_t * const task, uint32_t state) {
+    if (task == NULL) return;
 
-        head = &runner;
-
-        task->next = (*head)->next;
-        task->prev = (*head);
-        (*head)->next->prev = task;
-        (*head)->next = task;
+    if (state != STOS_TASK_READY && state != STOS_TASK_TIMEOUT) {
         return;
     }
+
+    stos_tcb_t **head = STOS_GetListHead(state);
+
+    if (head == NULL) return;
+
+    task->state = state;
+
+    if (*head == NULL) {
+        *head = task; 
+        task->prev = NULL;
+        task->next = NULL;
+        return;
+    }
+
+    if (STOS_CompareTasks(task, *head, state)) {
+        task->next = *head;
+        task->prev = NULL;
+        (*head)->prev = task;
+        *head = task;
+        return;
+    }
+
+    stos_tcb_t *runner = *head;
+    while (runner->next != NULL && !STOS_CompareTasks(task, runner->next, state)) {
+        runner = runner->next;
+    }
+
+    // At this point we're either at the end or at a priority lower than the current task
+
+    head = &runner;
+
+    task->next = (*head)->next;
+    task->prev = (*head);
+    (*head)->next->prev = task;
+    (*head)->next = task;
+    return;
 }
 
 void STOS_RemoveTask(stos_tcb_t * const task) {
     if (task == NULL) return;
 
-    stos_tcb_t **head = &(stos_ker.list_ready_head);
+    if (task->state != STOS_TASK_READY && task->state != STOS_TASK_TIMEOUT) return;
+
+    stos_tcb_t **head;
+
+    if (task->state == STOS_TASK_READY) {
+        head = &(stos_ker.list_ready_head);
+    }
 
     if (task->state == STOS_TASK_TIMEOUT) {
         head = &(stos_ker.list_timeout_head);
     }
 
-    if (*head == NULL) return;
+    if (head == NULL) return;
 
     stos_tcb_t *runner = *head;
     while (runner->next != NULL && (runner != task)) {

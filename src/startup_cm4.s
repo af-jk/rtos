@@ -46,7 +46,6 @@ CompareBssAddress:
     // Set PSP
     ldr     r1, =_pstack
     msr     psp, r1
-    // No need for ISB because we are still in context of MSP
 
     // Within main we want to use the MSP with privileged operation
     // Default control value is 0 which works in this case 
@@ -65,8 +64,10 @@ Infinite_Loop:
     .section .vectors,"a",%progbits
     .global nvic_vectors
 nvic_vectors:
-    // 16 Default Processor Exceptions
+    // Stack Pointer
     .word _mstack
+
+    // Processor Exceptions
     .word _start
     .word nmi_handler
     .word hard_flt_handler
@@ -83,7 +84,7 @@ nvic_vectors:
     .word pend_sv_handler
     .word sys_tick_handler
 
-    // 96 + 1 Peripheral Exceptions
+    // Peripherl Interrupts
     .word 0 /* Window WatchDog                              */                                        
     .word 0 /* PVD through EXTI Line detection              */                        
     .word 0 /* Tamper and TimeStamps through the EXTI line  */            

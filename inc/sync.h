@@ -4,8 +4,13 @@
 #include <stdbool.h>
 #include "task.h"
 
-#define STOS_MUTEX_ACQUIRED     (0U)
-#define STOS_MUTEX_NOT_ACQUIRED (1U)
+#define STOS_MUTEX_WAIT_NONE    (0U)
+
+typedef enum stos_mutex_status {
+    STOS_MUTEX_ACQUIRED,
+    STOS_MUTEX_NOT_ACQUIRED,
+    STOS_MUTEX_ERROR
+} stos_mutex_status_t;
 
 typedef struct stos_mutex {
     uint32_t lock;
@@ -14,7 +19,6 @@ typedef struct stos_mutex {
     stos_tcb_t *blocked_list_head; // maintain singly linked list
 } stos_mutex_t;
 
-#define STOS_MUTEX_WAIT_NONE    (0U)
 
 typedef stos_mutex_t stos_sem_t;
 
